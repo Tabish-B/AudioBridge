@@ -6,6 +6,7 @@
 - Added full-recording PNG export for spectrogram, Mel, and MFCC views, with time/value axes and analysis metadata.
 - Kept playback and file shortcuts available when dropdowns or time controls have focus; text entry keeps its normal key behavior.
 - Reworked annotations around waveform intervals and named tiers, with segment editing/playback and a versioned AudioBridge JSON export.
+- Replaced the private macOS system-font alias with explicit UI and Indic fallback fonts.
 
 ## 4.0.0 — 2026-11-17
 

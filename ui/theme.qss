@@ -1,5 +1,5 @@
 /* Colors and spacing follow the supplied conversion-studio design. */
-QWidget { color: #eff4ef; font-family: "@UI_FONT@"; font-size: 12px; }
+QWidget { color: #eff4ef; font-size: 12px; }
 QMainWindow, QWidget#workspace { background: #0d1010; }
 QFrame#sidebar { background: #101613; border-right: 1px solid #29332d; }
 QFrame#card { background: #151b18; border: 1px solid #29332d; border-radius: 12px; }

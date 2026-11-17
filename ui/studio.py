@@ -12,7 +12,7 @@ if sys.platform == "darwin":
     os.environ.setdefault("QT_MEDIA_BACKEND", "darwin")
 
 from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Signal
-from PySide6.QtGui import QFontDatabase, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QApplication,
@@ -52,7 +52,7 @@ from version import __version__
 from .annotation_timeline import AnnotationTimeline
 from .editor_panel import EditorPanel
 from .region_playback import RegionPlayback
-from .resources import ASSET_DIR, ROOT, application_icon
+from .resources import ASSET_DIR, ROOT, application_icon, configure_application_font
 from .spectral_export import render_spectral_image
 from .widgets import FileQueue, button, card, clock, label
 
@@ -65,16 +65,13 @@ class Events(QObject):
 class AudioBridgeGUI(QMainWindow):
     def __init__(self):
         super().__init__()
+        configure_application_font(QApplication.instance())
         self.setWindowTitle(f"AudioBridge {__version__} · Conversion studio")
         self.setWindowIcon(application_icon())
         self.resize(1400, 950)
         self.setMinimumSize(420, 500)
-        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
         self.setStyleSheet(
-            (ROOT / "ui" / "theme.qss")
-            .read_text()
-            .replace("@UI_FONT@", font)
-            .replace("@ASSET_DIR@", ASSET_DIR.as_posix())
+            (ROOT / "ui" / "theme.qss").read_text().replace("@ASSET_DIR@", ASSET_DIR.as_posix())
         )
         self.converter = AudioConverter()
         self.analyzer = AudioAnalyzer()

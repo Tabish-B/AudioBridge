@@ -11,7 +11,7 @@ if sys.platform == "darwin":
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from ui.resources import application_icon
+from ui.resources import application_icon, configure_application_font
 from ui.startup import StartupSplash
 from version import __version__
 
@@ -21,6 +21,7 @@ def main():
     app.setApplicationName("AudioBridge")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("AudioBridge")
+    configure_application_font(app)
     app.setWindowIcon(application_icon())
     app.setStyle("Fusion")
     splash = StartupSplash()
