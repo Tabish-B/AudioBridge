@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Made PCM bit-depth state visible in the output summary and clarified when a selected codec doesn't use PCM depth.
+- Added full-recording PNG export for spectrogram, Mel, and MFCC views, with time/value axes and analysis metadata.
+- Kept playback and file shortcuts available when dropdowns or time controls have focus; text entry keeps its normal key behavior.
+- Reworked annotations around waveform intervals and named tiers, with segment editing/playback and a versioned AudioBridge JSON export.
+
 ## 4.0.0 — 2026-11-17
 
 - Added a dedicated audio editor with configurable FFT size, hop length, window, frequency and dB ranges, and linear/logarithmic frequency display.

@@ -11,25 +11,29 @@ from pathlib import Path
 if sys.platform == "darwin":
     os.environ.setdefault("QT_MEDIA_BACKEND", "darwin")
 
-from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QFontDatabase, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QApplication,
     QBoxLayout,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QDoubleSpinBox,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QProgressBar,
     QScrollArea,
-    QSpinBox,
     QStackedWidget,
     QTextEdit,
     QVBoxLayout,
@@ -37,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from converter import AudioAnalyzer, AudioConverter
+from converter.annotations import annotation_document
 from converter.formats import FORMATS, output_suffix
 from converter.preview import build_preview
 from converter.regions import AudioRegion, check_destination, export_region, split_recording
@@ -44,9 +49,11 @@ from converter.spectral import SpectralSettings
 from converter.waveform import waveform_window
 from version import __version__
 
+from .annotation_timeline import AnnotationTimeline
 from .editor_panel import EditorPanel
 from .region_playback import RegionPlayback
 from .resources import ASSET_DIR, ROOT, application_icon
+from .spectral_export import render_spectral_image
 from .widgets import FileQueue, button, card, clock, label
 
 
@@ -76,7 +83,8 @@ class AudioBridgeGUI(QMainWindow):
         self.report = None
         self.audit_results = []
         self.annotations = []
-        self.segment_start = None
+        self.annotation_tiers = ["Transcript", "Speaker", "Event"]
+        self.pending_annotation_navigation = None
         self.audit_busy = False
         self.busy = False
         self.output_dir = Path.home() / "Downloads" / "AudioBridge"
@@ -114,25 +122,29 @@ class AudioBridgeGUI(QMainWindow):
         self.player.playbackStateChanged.connect(self._playback_changed)
         self.player.errorOccurred.connect(self._player_error)
         self.player.mediaStatusChanged.connect(self._media_status)
-        self.shortcuts = [
-            QShortcut(QKeySequence("Space"), self),
-            QShortcut(QKeySequence("Delete"), self),
-            QShortcut(QKeySequence("Backspace"), self),
-        ]
-        self.shortcuts[0].activated.connect(self._toggle_play)
-        for shortcut in self.shortcuts[1:]:
-            shortcut.activated.connect(self._remove_file)
-        for keys, callback in [
-            ("Ctrl+O" if sys.platform != "darwin" else "Meta+O", self._upload_files),
-            ("Ctrl+Shift+O" if sys.platform != "darwin" else "Meta+Shift+O", self._upload_folder),
-            ("I", self._mark_selection_start),
-            ("O", self._mark_selection_end),
-            ("Escape", self._clear_selection),
-            ("F1", self._show_help),
+        self.shortcuts = []
+        self.editing_sensitive_shortcuts = []
+        for keys, callback, edit_safe in [
+            ("Space", self._toggle_play, False),
+            ("Delete", self._remove_file_shortcut, False),
+            ("Backspace", self._remove_file_shortcut, False),
+            ("Ctrl+O" if sys.platform != "darwin" else "Meta+O", self._upload_files, True),
+            (
+                "Ctrl+Shift+O" if sys.platform != "darwin" else "Meta+Shift+O",
+                self._upload_folder,
+                True,
+            ),
+            ("I", self._mark_selection_start, False),
+            ("O", self._mark_selection_end, False),
+            ("Escape", self._clear_selection, False),
+            ("F1", self._show_help, True),
         ]:
             shortcut = QShortcut(QKeySequence(keys), self)
+            shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
             shortcut.activated.connect(callback)
             self.shortcuts.append(shortcut)
+            if not edit_safe:
+                self.editing_sensitive_shortcuts.append(shortcut)
         QApplication.instance().focusChanged.connect(self._focus_changed)
         self.setAcceptDrops(True)
 
@@ -142,8 +154,13 @@ class AudioBridgeGUI(QMainWindow):
             self.editor_feedback.setText(text)
 
     def _focus_changed(self, old, current):
-        editing = isinstance(current, (QLineEdit, QTextEdit, QComboBox, QDoubleSpinBox, QSpinBox))
-        for shortcut in self.shortcuts:
+        editing = False
+        while current is not None and current is not self:
+            if isinstance(current, (QLineEdit, QTextEdit)):
+                editing = True
+                break
+            current = current.parentWidget()
+        for shortcut in self.editing_sensitive_shortcuts:
             shortcut.setEnabled(not editing)
 
     def _build_ui(self):
@@ -354,6 +371,7 @@ class AudioBridgeGUI(QMainWindow):
         panel.open_editor_requested.connect(lambda: self._set_page(3))
         panel.analyze_requested.connect(self._analyze)
         panel.report_requested.connect(self._export_report)
+        panel.spectral_export_requested.connect(self._export_spectral_image)
         panel.zoom_requested.connect(self._zoom_by)
         panel.play_requested.connect(self._toggle_play)
         panel.restart_requested.connect(lambda: self._seek(0))
@@ -368,6 +386,7 @@ class AudioBridgeGUI(QMainWindow):
         panel.speed.currentIndexChanged.connect(self._set_speed)
         panel.volume.valueChanged.connect(self._set_volume)
         panel.region_controls.selection_changed.connect(self._typed_selection)
+        panel.region_controls.selection_changed.connect(self._annotation_selection_changed)
         panel.region_controls.play_requested.connect(self._play_selection)
         panel.region_controls.export_requested.connect(self._export_selection)
         panel.region_controls.split_requested.connect(self._split_audio)
@@ -380,15 +399,18 @@ class AudioBridgeGUI(QMainWindow):
         self.page_picker.blockSignals(False)
         for item in self.nav_buttons:
             item.setChecked(item.property("page") == index)
-        if index == 3:
+        if index == 2:
+            self._refresh_annotation_files()
+            self.annotation_page_layout.insertWidget(3, self.editor, 1)
+        elif index == 3:
             self.editor_page_layout.addWidget(self.editor, 1)
         elif self.editor.parentWidget() is not self.studio_editor_layout.parentWidget():
             self.studio_editor_layout.addWidget(self.editor, 1)
         self.editor.spectral_controls.setVisible(index == 3)
-        self.editor.region_controls.setVisible(index == 3)
+        self.editor.region_controls.setVisible(index in (2, 3))
         self.editor.zoom_in.setVisible(index == 3)
         self.editor.zoom_out.setVisible(index == 3)
-        self.editor.open_editor.setVisible(index != 3)
+        self.editor.open_editor.setVisible(index == 0)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -411,6 +433,7 @@ class AudioBridgeGUI(QMainWindow):
         for layout in (
             self.upload_row,
             self.editor.transport,
+            self.editor.view_toolbar,
             self.footer_actions,
             self.queue_header,
             self.editor.preview_header,
@@ -452,31 +475,56 @@ class AudioBridgeGUI(QMainWindow):
         self.audit_text.setReadOnly(True)
         self.audit_text.setMinimumHeight(240)
         audit.addWidget(self.audit_text, 1)
-        annotations = self._research_page(
+        self.annotation_page_layout = self._research_page(
             "Segment annotations",
-            "Mark time ranges while listening, label them, and export a CSV for dataset review. These are manual annotations; the original recording is not edited.",
+            "Choose a recording, select a time range on its waveform, and add that interval to a named tier. Segments can overlap; source audio is never changed.",
         )
-        self.annotation_time = label("Select a recording in Conversion studio.", "muted")
-        self.annotation_time.setWordWrap(True)
-        annotations.addWidget(self.annotation_time)
+        annotations = self.annotation_page_layout
+        annotation_source = QHBoxLayout()
+        annotation_source.addWidget(label("Recording"))
+        self.annotation_file = QComboBox()
+        self.annotation_file.addItem("Choose a queued recording…", None)
+        self.annotation_file.currentIndexChanged.connect(self._annotation_file_changed)
+        annotation_source.addWidget(self.annotation_file, 1)
+        annotations.addLayout(annotation_source)
+        self.annotation_timeline = AnnotationTimeline()
+        self.annotation_timeline.annotation_activated.connect(self._select_timeline_annotation)
+        annotations.addWidget(self.annotation_timeline)
+        annotation_tier_row = QHBoxLayout()
+        annotation_tier_row.addWidget(label("Tier"))
+        self.annotation_tier = QComboBox()
+        self.annotation_tier.addItems(self.annotation_tiers)
+        annotation_tier_row.addWidget(self.annotation_tier, 1)
+        annotation_tier_row.addWidget(button("Add tier…", self._add_annotation_tier, "quiet"))
+        annotations.addLayout(annotation_tier_row)
         self.annotation_label = QLineEdit()
-        self.annotation_label.setPlaceholderText("Label, e.g. speech, background noise, overlap")
-        self.annotation_label.setMaxLength(100)
+        self.annotation_label.setPlaceholderText("Annotation text, e.g. words, speaker, or event")
+        self.annotation_label.setMaxLength(1000)
         annotations.addWidget(self.annotation_label)
-        annotations.addWidget(button("Mark start at playhead", self._mark_start))
-        annotations.addWidget(button("Mark end and add segment", self._mark_end))
+        self.annotation_add = button(
+            "Add selected interval to tier", self._add_annotation, "primary"
+        )
+        self.annotation_add.setEnabled(False)
+        annotations.addWidget(self.annotation_add)
         self.annotation_status = label(
-            "Start playback in the studio, then mark the segment here.", "muted"
+            "Drag across the waveform to select an interval. Use the start and end fields for precise timing.",
+            "muted",
         )
         self.annotation_status.setWordWrap(True)
         annotations.addWidget(self.annotation_status)
         self.annotation_list = QListWidget()
         self.annotation_list.setMinimumHeight(180)
-        annotations.addWidget(self.annotation_list, 1)
-        annotations.addWidget(
-            button("Remove selected annotation", self._remove_annotation, "quiet")
+        self.annotation_list.itemDoubleClicked.connect(self._jump_to_annotation)
+        self.annotation_list.currentItemChanged.connect(
+            lambda *_: self._refresh_annotation_timeline()
         )
-        annotations.addWidget(button("Export annotations CSV", self._export_annotations))
+        annotations.addWidget(self.annotation_list, 1)
+        annotation_actions = QHBoxLayout()
+        annotation_actions.addWidget(button("Play segment", self._play_annotation))
+        annotation_actions.addWidget(button("Edit…", self._edit_annotation))
+        annotation_actions.addWidget(button("Remove", self._remove_annotation, "quiet"))
+        annotations.addLayout(annotation_actions)
+        annotations.addWidget(button("Export annotations…", self._export_annotations, "primary"))
 
     def _audit(self):
         if self.audit_busy:
@@ -568,56 +616,245 @@ class AudioBridgeGUI(QMainWindow):
             except OSError as exc:
                 self.audit_status.setText(str(exc))
 
-    def _mark_start(self):
-        if self.selected_file is None:
-            self.annotation_status.setText("Select a recording in Conversion studio first.")
-            return
-        self.segment_start = (self.selected_file, self.editor.plot.position / 1000)
-        self.annotation_status.setText(
-            f"Start marked at {self.segment_start[1]:.3f} s. Seek or play to the end of the segment."
-        )
+    def _refresh_annotation_files(self):
+        selected = str(self.selected_file) if self.selected_file else None
+        self.annotation_file.blockSignals(True)
+        self.annotation_file.clear()
+        self.annotation_file.addItem("Choose a queued recording…", None)
+        for path in self.files:
+            self.annotation_file.addItem(path.name, str(path))
+        index = self.annotation_file.findData(selected) if selected else 0
+        self.annotation_file.setCurrentIndex(max(0, index))
+        self.annotation_file.blockSignals(False)
+        self._annotation_selection_changed()
+        self._refresh_annotation_timeline()
 
-    def _mark_end(self):
-        if self.segment_start is None or self.segment_start[0] != self.selected_file:
-            self.annotation_status.setText("Mark a start point in the selected recording first.")
+    def _annotation_file_changed(self, index):
+        path = self.annotation_file.itemData(index)
+        if not path:
+            self._annotation_selection_changed()
             return
-        start = self.segment_start[1]
-        end = self.editor.plot.position / 1000
-        if end <= start:
-            self.annotation_status.setText("The end must be after the start point.")
+        try:
+            row = self.files.index(Path(path))
+        except ValueError:
+            return
+        self.table.setCurrentRow(row)
+        self._annotation_selection_changed()
+
+    def _annotation_selection_changed(self, *_):
+        valid = (
+            self.selected_file is not None
+            and self.editor.plot.preview is not None
+            and self.editor.region_controls.end.value() > self.editor.region_controls.start.value()
+        )
+        self.annotation_add.setEnabled(valid)
+
+    def _add_annotation_tier(self):
+        name, accepted = QInputDialog.getText(self, "Add annotation tier", "Tier name")
+        name = name.strip()
+        if not accepted or not name:
+            return
+        if name.casefold() in {item.casefold() for item in self.annotation_tiers}:
+            self.annotation_status.setText("A tier with that name already exists.")
+            return
+        self.annotation_tiers.append(name)
+        self.annotation_tier.addItem(name)
+        self.annotation_tier.setCurrentText(name)
+
+    def _add_annotation(self):
+        try:
+            region = self._selected_region()
+        except ValueError as exc:
+            self.annotation_status.setText(str(exc))
             return
         text = self.annotation_label.text().strip() or "unlabelled"
-        row = dict(
-            file=str(self.selected_file),
-            start_seconds=round(start, 3),
-            end_seconds=round(end, 3),
-            label=text,
+        self.annotations.append(
+            {
+                "file": str(self.selected_file),
+                "tier": self.annotation_tier.currentText(),
+                "start_seconds": region.start,
+                "end_seconds": region.end,
+                "label": text,
+                "duration_seconds": self.editor.plot.preview["seconds"],
+            }
         )
-        self.annotations.append(row)
-        self.annotation_list.addItem(f"{self.selected_file.name}\n{start:.3f}–{end:.3f} s · {text}")
-        self.segment_start = None
-        self.annotation_status.setText("Segment added. Mark another start to continue.")
+        self._refresh_annotation_list()
+        self.annotation_label.clear()
+        self.annotation_status.setText("Interval added. Select another range or refine this one.")
+
+    def _refresh_annotation_list(self):
+        self.annotation_list.clear()
+        for index, row in enumerate(self.annotations):
+            name = Path(row["file"]).name
+            start, end = row["start_seconds"], row["end_seconds"]
+            item = QListWidgetItem(
+                f"{name}  ·  {row['tier']}\n{start:.3f}–{end:.3f} s   {row['label']}"
+            )
+            item.setSizeHint(QSize(0, 44))
+            item.setData(Qt.ItemDataRole.UserRole, index)
+            item.setToolTip(str(row["file"]))
+            self.annotation_list.addItem(item)
+        self._refresh_annotation_timeline()
+
+    def _refresh_annotation_timeline(self):
+        duration = (
+            self.editor.plot.preview["seconds"]
+            if self.selected_file is not None and self.editor.plot.preview is not None
+            else 0
+        )
+        self.annotation_timeline.set_data(
+            self.annotations,
+            self.annotation_tiers,
+            self.selected_file,
+            duration,
+            self._selected_annotation(),
+        )
+
+    def _select_timeline_annotation(self, index):
+        for row in range(self.annotation_list.count()):
+            item = self.annotation_list.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == index:
+                self.annotation_list.setCurrentItem(item)
+                self._jump_to_annotation()
+                return
+
+    def _selected_annotation(self):
+        item = self.annotation_list.currentItem()
+        if item is None:
+            return None
+        return item.data(Qt.ItemDataRole.UserRole)
+
+    def _annotation_dialog(self, row):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit annotation")
+        form = QFormLayout(dialog)
+        start = QDoubleSpinBox()
+        end = QDoubleSpinBox()
+        duration = max(float(row.get("duration_seconds", 0)), row["end_seconds"])
+        for widget, value in ((start, row["start_seconds"]), (end, row["end_seconds"])):
+            widget.setDecimals(6)
+            widget.setRange(0, duration or 24 * 60 * 60)
+            widget.setSuffix(" s")
+            widget.setValue(value)
+        tier = QComboBox()
+        tier.addItems(self.annotation_tiers)
+        tier.setCurrentText(row["tier"])
+        text = QLineEdit(row["label"])
+        text.setMaxLength(1000)
+        form.addRow("Start", start)
+        form.addRow("End", end)
+        form.addRow("Tier", tier)
+        form.addRow("Text", text)
+        actions = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        actions.accepted.connect(dialog.accept)
+        actions.rejected.connect(dialog.reject)
+        form.addRow(actions)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        if end.value() <= start.value():
+            self.annotation_status.setText("An interval needs an end time after its start.")
+            return
+        row.update(
+            start_seconds=start.value(),
+            end_seconds=end.value(),
+            tier=tier.currentText(),
+            label=text.text().strip() or "unlabelled",
+        )
+        self._refresh_annotation_list()
+
+    def _edit_annotation(self):
+        index = self._selected_annotation()
+        if index is None:
+            self.annotation_status.setText("Select a segment to edit it.")
+            return
+        self._annotation_dialog(self.annotations[index])
+
+    def _jump_to_annotation(self, item=None, *, play=False):
+        index = self._selected_annotation()
+        if index is None:
+            return
+        row = self.annotations[index]
+        path = Path(row["file"])
+        if path not in self.files:
+            self.annotation_status.setText("Add this recording to the queue to open its segment.")
+            return
+        self.pending_annotation_navigation = (
+            path,
+            row["start_seconds"],
+            row["end_seconds"],
+            play,
+        )
+        self._annotation_file_changed(self.annotation_file.findData(str(path)))
+        if self.selected_file == path and self.editor.plot.preview is not None:
+            self._apply_annotation_navigation()
+
+    def _apply_annotation_navigation(self):
+        pending = self.pending_annotation_navigation
+        if not pending or pending[0] != self.selected_file or self.editor.plot.preview is None:
+            return
+        _, start, end, play = pending
+        self.pending_annotation_navigation = None
+        self.editor.region_controls.set_region(start, end)
+        self.editor.plot.selection = (start, end)
+        self._seek(start * 1000)
+        self._refresh_annotation_timeline()
+        self.editor.plot.update()
+        if play:
+            self._play_selection()
+
+    def _play_annotation(self):
+        if self._selected_annotation() is None:
+            self.annotation_status.setText("Select a segment to play it.")
+            return
+        self._jump_to_annotation(play=True)
 
     def _remove_annotation(self):
-        index = self.annotation_list.currentRow()
-        if index >= 0:
-            self.annotation_list.takeItem(index)
+        index = self._selected_annotation()
+        if index is not None:
             self.annotations.pop(index)
+            self._refresh_annotation_list()
 
     def _export_annotations(self):
         if not self.annotations:
             self.annotation_status.setText("Add a segment before exporting.")
             return
-        destination, _ = QFileDialog.getSaveFileName(
-            self, "Save annotations", "annotations.csv", "CSV (*.csv)"
+        destination, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save annotations",
+            "annotations.json",
+            "AudioBridge JSON (*.json);;CSV (*.csv)",
         )
         if destination:
             try:
-                self._write_csv(
-                    destination, self.annotations, ["file", "start_seconds", "end_seconds", "label"]
-                )
+                if selected_filter.startswith("CSV") or destination.lower().endswith(".csv"):
+                    target = Path(destination)
+                    if target.suffix.lower() != ".csv":
+                        target = target.with_suffix(".csv")
+                    self._write_csv(
+                        target,
+                        self.annotations,
+                        ["file", "tier", "start_seconds", "end_seconds", "label"],
+                    )
+                else:
+                    target = Path(destination)
+                    if target.suffix.lower() != ".json":
+                        target = target.with_suffix(".json")
+                    target.write_text(
+                        json.dumps(
+                            annotation_document(
+                                self.annotations, self.annotation_tiers, __version__
+                            ),
+                            ensure_ascii=False,
+                            indent=2,
+                            allow_nan=False,
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
                 self.annotation_status.setText("Annotations saved")
-            except OSError as exc:
+            except (OSError, ValueError) as exc:
                 self.annotation_status.setText(str(exc))
 
     def _combo(self, layout, title, values, index=0):
@@ -645,12 +882,32 @@ class AudioBridgeGUI(QMainWindow):
 
     def _format_changed(self, value):
         self.format_note.setText(FORMATS[value][1])
-        self.depth.setEnabled(value in ("WAV", "FLAC", "AIFF", "Keep original"))
+        applies = self._depth_applies()
+        self.depth.setEnabled(applies)
+        self.depth.setToolTip(
+            "Choose the PCM sample depth for this lossless output."
+            if applies
+            else "PCM bit depth does not apply to this lossy output. Choose WAV, FLAC, or AIFF to set it."
+        )
+        self.settings_note.setText(
+            "PCM depth applies to WAV, FLAC, and AIFF. Lossy outputs such as MP3 use their codec's encoding settings."
+        )
         self._update_summary()
 
+    def _depth_applies(self):
+        output = self.output_format.currentText()
+        if output in ("WAV", "FLAC", "AIFF"):
+            return True
+        return (
+            output == "Keep original"
+            and self.selected_file is not None
+            and self.selected_file.suffix.lower() in {".wav", ".flac", ".aiff", ".aif"}
+        )
+
     def _update_summary(self):
+        bit_depth = self.depth.currentText() if self._depth_applies() else "PCM depth not used"
         self.output_summary.setText(
-            f"{self.output_format.currentText()}  /  {self.rate.currentText()}  /  {self.channels.currentText()}"
+            f"{self.output_format.currentText()}  /  {self.rate.currentText()}  /  {self.channels.currentText()}  /  {bit_depth}"
         )
 
     def _upload_files(self):
@@ -685,6 +942,7 @@ class AudioBridgeGUI(QMainWindow):
             self.table.add_file(path)
         self.queue_label.setText(f"Files in queue   ·   {len(self.files)}")
         self.convert_button.setEnabled(bool(self.files) and not self.busy)
+        self._refresh_annotation_files()
         if self.files and self.table.currentRow() < 0:
             self.table.setCurrentRow(0)
         self.import_notice.setText(
@@ -696,7 +954,6 @@ class AudioBridgeGUI(QMainWindow):
 
     def _reset_selection(self):
         self.pending_source_seek = None
-        self.segment_start = None
         self.region_player.stop()
         self.player.stop()
         self.player.setSource(QUrl())
@@ -719,6 +976,8 @@ class AudioBridgeGUI(QMainWindow):
         self.editor.play_button.setEnabled(False)
         self.editor.analyze_button.setEnabled(False)
         self.editor.export_button.setEnabled(False)
+        self.editor.export_spectral.setEnabled(False)
+        self.editor.export_spectral.setVisible(False)
         self.editor.seek_slider.setEnabled(False)
 
     def _clear_files(self):
@@ -730,6 +989,7 @@ class AudioBridgeGUI(QMainWindow):
         self.table.blockSignals(False)
         self.files.clear()
         self.cache.clear()
+        self._refresh_annotation_files()
         self.import_notice.hide()
         self.queue_label.setText("Files in queue   ·   0")
         self.convert_button.setEnabled(False)
@@ -752,6 +1012,12 @@ class AudioBridgeGUI(QMainWindow):
         if self.files:
             self.table.setCurrentRow(min(row, len(self.files) - 1))
             self._on_select()
+        self._refresh_annotation_files()
+
+    def _remove_file_shortcut(self):
+        focus = self.focusWidget()
+        if focus is self.table or (focus is not None and self.table.isAncestorOf(focus)):
+            self._remove_file()
 
     def _on_select(self):
         row = self.table.currentRow()
@@ -762,6 +1028,8 @@ class AudioBridgeGUI(QMainWindow):
             return
         self._reset_selection()
         self.selected_file = path
+        self._format_changed(self.output_format.currentText())
+        self._refresh_annotation_files()
         self.editor.filename.setText(path.name)
         self.editor.filename.setToolTip(str(path))
         self.editor.analyze_button.setEnabled(path not in self.analysis_pending)
@@ -894,14 +1162,19 @@ class AudioBridgeGUI(QMainWindow):
         self.editor.file_properties.setText(
             f"Source: {info['sample_rate']:,} Hz · {info['channels']} ch · {info['codec']}"
         )
+        self.editor.export_spectral.setEnabled(self.editor.plot.view != "Waveform")
+        self.editor.export_spectral.setVisible(self.editor.plot.view != "Waveform")
         self.editor.plot.spectral_loading = False
         self.editor.region_controls.set_duration(result["seconds"])
+        self._annotation_selection_changed()
+        self._refresh_annotation_timeline()
         self._set_status("Recording ready")
         self._set_zoom()
         self.editor.spectrum_legend.setText(result.get("spectral_legend", "Spectral power"))
         self.editor.preview_note.setText(
             f"Whole recording: {clock(result['seconds'] * 1000)} · Display: mono / {result['rate']:,} Hz"
         )
+        self._apply_annotation_navigation()
 
     def _set_zoom(self, index=None):
         if self.editor.zoom.currentIndex() != 6:
@@ -931,6 +1204,10 @@ class AudioBridgeGUI(QMainWindow):
     def _change_view(self, view):
         self.editor.plot.view = view
         self.editor.spectrum_legend.setVisible(view != "Waveform")
+        self.editor.export_spectral.setVisible(view != "Waveform")
+        self.editor.export_spectral.setEnabled(
+            view != "Waveform" and self.editor.plot.preview is not None
+        )
         if view != "Waveform":
             self.editor.spectral_controls.set_mode(view)
             if self.spectral_settings.mode != view:
@@ -955,6 +1232,7 @@ class AudioBridgeGUI(QMainWindow):
             return
         self.spectral_settings = settings
         self.editor.spectral_controls.set_mode(mode)
+        self.editor.export_spectral.setEnabled(False)
         self._request_preview()
 
     def _set_speed(self, index):
@@ -1017,12 +1295,14 @@ class AudioBridgeGUI(QMainWindow):
         self.editor.region_controls.set_region(start, end)
         self.editor.plot.selection = (start, end) if end > start else None
         self.editor.plot.update()
+        self._annotation_selection_changed()
 
     def _typed_selection(self, start, end):
         if self.region_player.active:
             self._seek(self.editor.plot.position)
         self.editor.plot.selection = (start, end) if end > start else None
         self.editor.plot.update()
+        self._annotation_selection_changed()
 
     def _clear_selection(self):
         if self.region_player.active:
@@ -1030,6 +1310,7 @@ class AudioBridgeGUI(QMainWindow):
         self.editor.region_controls.set_region(0, 0)
         self.editor.plot.selection = None
         self.editor.plot.update()
+        self._annotation_selection_changed()
 
     def _selected_region(self):
         if self.selected_file is None or self.editor.plot.preview is None:
@@ -1159,6 +1440,34 @@ class AudioBridgeGUI(QMainWindow):
         self._set_status("Checking audio…")
         self._submit("analysis", path, lambda: self.analyzer.analyze(path))
 
+    def _export_spectral_image(self):
+        preview = self.editor.plot.preview
+        view = self.editor.plot.view
+        if (
+            preview is None
+            or view == "Waveform"
+            or preview["spectral_settings"].mode != view
+            or self.editor.plot.spectral_loading
+        ):
+            self._set_status("Choose a spectral view before exporting an image.")
+            return
+        suffix = view.lower().replace(" ", "_")
+        folder = self.output_dir if self.output_dir.is_dir() else self.selected_file.parent
+        default = folder / f"{self.selected_file.stem}_{suffix}.png"
+        destination, _ = QFileDialog.getSaveFileName(
+            self, "Export full-recording spectral image", str(default), "PNG image (*.png)"
+        )
+        if not destination:
+            return
+        target = Path(destination)
+        if target.suffix.lower() != ".png":
+            target = target.with_suffix(".png")
+        image = render_spectral_image(preview, self.selected_file.name, view)
+        if image.save(str(target), "PNG"):
+            self._set_status(f"Full-recording {view.lower()} saved · {target.name}")
+        else:
+            self._set_status(f"Could not write PNG · {target}")
+
     def _export_report(self):
         if self.report is None:
             self._set_status("Select a file and run audio checks first")
@@ -1234,10 +1543,6 @@ class AudioBridgeGUI(QMainWindow):
             span = self.editor.plot.visible_seconds()
             if not self.editor.plot.offset <= position / 1000 < self.editor.plot.offset + span:
                 self.editor.timeline_scroll.setValue(round(position / 1000 // span * span * 1000))
-        if hasattr(self, "annotation_time"):
-            self.annotation_time.setText(
-                f"{self.selected_file.name if self.selected_file else 'No file selected'} · {clock(position)}"
-            )
         self.editor.plot.update()
 
     def _duration_changed(self, duration):

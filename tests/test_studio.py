@@ -21,6 +21,7 @@ from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
+from converter.annotations import annotation_document
 from converter.preview import build_preview
 from ui.studio import AudioBridgeGUI
 
@@ -213,16 +214,17 @@ class StudioTests(unittest.TestCase):
         wait_for(lambda: not w.audit_busy)
         self.assertEqual(len(w.audit_results), 1)
         self.assertNotIn("error", w.audit_results[0])
-        w._seek(200)
-        w._mark_start()
-        w._seek(1200)
+        w._set_page(2)
+        w.editor.region_controls.set_region(0.2, 1.2)
         w.annotation_label.setText("background noise")
-        w._mark_end()
+        w.annotation_tier.setCurrentText("Event")
+        w._add_annotation()
         self.assertEqual(w.annotations[0]["start_seconds"], 0.2)
         self.assertEqual(w.annotations[0]["end_seconds"], 1.2)
-        destination = self.base / "annotations.csv"
-        w._write_csv(destination, w.annotations, ["file", "start_seconds", "end_seconds", "label"])
-        self.assertIn("background noise", destination.read_text())
+        document = annotation_document(w.annotations, w.annotation_tiers, "4.0.0")
+        self.assertEqual(document["tiers"][-1]["name"], "Event")
+        self.assertEqual(document["annotations"][0]["text"], "background noise")
+        self.assertEqual(document["media"][0]["file_name"], self.path.name)
 
     def test_drag_selection_timestamp_editing_and_zoom(self):
         self.load()

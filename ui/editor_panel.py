@@ -23,6 +23,7 @@ from .widgets import button, label
 class EditorPanel(QFrame):
     analyze_requested = Signal()
     report_requested = Signal()
+    spectral_export_requested = Signal()
     zoom_requested = Signal(float)
     play_requested = Signal()
     restart_requested = Signal()
@@ -56,10 +57,10 @@ class EditorPanel(QFrame):
         self.open_editor = button("Advanced editor →", self.open_editor_requested.emit, "quiet")
         self.preview_header.addLayout(actions)
         box.addWidget(self.open_editor)
-        switch = QHBoxLayout()
+        self.view_toolbar = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.view = QComboBox()
         self.view.addItems(["Waveform", "Spectrogram", "Mel spectrogram", "MFCC"])
-        switch.addWidget(self.view)
+        self.view_toolbar.addWidget(self.view)
         self.zoom = QComboBox()
         self.zoom.addItems(
             [
@@ -72,8 +73,14 @@ class EditorPanel(QFrame):
                 "Custom window",
             ]
         )
-        switch.addWidget(self.zoom)
-        switch.addStretch()
+        self.view_toolbar.addWidget(self.zoom)
+        self.export_spectral = button(
+            "Export view PNG…", self.spectral_export_requested.emit, "quiet"
+        )
+        self.export_spectral.setToolTip("Save the full-recording spectral image as a PNG")
+        self.export_spectral.setVisible(False)
+        self.view_toolbar.addWidget(self.export_spectral)
+        self.view_toolbar.addStretch()
         self.zoom_in = button("+", lambda: self.zoom_requested.emit(0.5), "quiet")
         self.zoom_out = button("−", lambda: self.zoom_requested.emit(2), "quiet")
         self.zoom_in.setToolTip("Zoom in (Ctrl / Command + mouse wheel)")
@@ -82,7 +89,7 @@ class EditorPanel(QFrame):
         zoom_actions.addWidget(self.zoom_in)
         zoom_actions.addWidget(self.zoom_out)
         zoom_actions.addStretch()
-        box.addLayout(switch)
+        box.addLayout(self.view_toolbar)
         box.addLayout(zoom_actions)
         self.spectral_controls = SpectralControls()
         self.spectral_controls.set_mode("Spectrogram")

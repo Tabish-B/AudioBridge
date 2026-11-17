@@ -39,10 +39,19 @@ change the parameters, then Apply. Invalid settings explain what needs changing.
 Linear/log frequency applies to the standard spectrogram. dB bounds control the standard
 and Mel views. Mel uses its
 own frequency spacing and MFCC uses coefficient values rather than dB.
+Use **Export view PNG** to save the full-recording analysis image with its time axis,
+frequency or coefficient ticks, and settings in the PNG metadata.
+
+**Annotate:** choose a queued recording, select an interval on its waveform, choose a
+tier, and add text. Double-click a row to jump back to it. Segments can be edited, played,
+and exported to AudioBridge JSON or CSV.
 
 **If an import fails:** check the filename shown in the notice. Remove damaged or
 unsupported files; other queued files can still be converted. If an output folder
 is unavailable, select another folder and retry.
+
+Delete and Backspace remove a queued recording only while the queue has focus.
+Single-key shortcuts pause while typing in a text field.
 """)
         layout.addWidget(text)
         close = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)

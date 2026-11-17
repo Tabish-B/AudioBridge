@@ -48,23 +48,32 @@ def main():
             if ready:
                 if state == 0:
                     save("audiobridge.png")
+                    window._set_page(2)
+                    window.editor.region_controls.start.setValue(2.5)
+                    window.editor.region_controls.end.setValue(6.2)
+                    window._typed_selection(2.5, 6.2)
+                    window.annotation_label.setText("Generated speech sample")
+                    window._add_annotation()
+                    state = 1
+                elif state == 1:
+                    save("annotations.png")
                     window._set_page(3)
                     window.editor.region_controls.start.setValue(2.5)
                     window.editor.region_controls.end.setValue(6.2)
-                    state = 1
-                elif state == 1:
+                    state = 2
+                elif state == 2:
                     save("editor.png")
                     window.editor.view.setCurrentText("Spectrogram")
-                    state = 2
-                elif state == 2 and plot.preview["spectral_settings"].mode == "Spectrogram":
+                    state = 3
+                elif state == 3 and plot.preview["spectral_settings"].mode == "Spectrogram":
                     save("spectrogram.png")
                     window.editor.view.setCurrentText("Mel spectrogram")
-                    state = 3
-                elif state == 3 and plot.preview["spectral_settings"].mode == "Mel spectrogram":
+                    state = 4
+                elif state == 4 and plot.preview["spectral_settings"].mode == "Mel spectrogram":
                     save("mel.png")
                     window.editor.view.setCurrentText("MFCC")
-                    state = 4
-                elif state == 4 and plot.preview["spectral_settings"].mode == "MFCC":
+                    state = 5
+                elif state == 5 and plot.preview["spectral_settings"].mode == "MFCC":
                     save("mfcc.png")
                     window.close()
                     app.exit(0)

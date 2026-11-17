@@ -16,11 +16,14 @@ Qt playback tests are muted and need an available media backend. macOS uses the 
 | Module | Responsibility |
 | --- | --- |
 | `converter/spectral.py` | Validated parameters, streaming STFT, Mel filters, MFCC, raster mapping |
+| `converter/annotations.py` | Versioned, path-safe JSON annotation document |
 | `converter/preview.py` | Bounded whole-file decode and display summaries |
 | `converter/waveform.py` | Close-up waveform decode |
 | `converter/regions.py` | Sample bounds, staged export, exclusive publication, two-part split |
 | `ui/editor_panel.py` | Editor view and signals |
 | `ui/audio_plot.py` | Painting, selection gestures, zoom gestures |
+| `ui/annotation_timeline.py` | Clickable, time-aligned annotation tier overview |
+| `ui/spectral_export.py` | Full-recording spectral PNG with axes and analysis metadata |
 | `ui/spectral_controls.py`, `ui/region_controls.py` | Input controls and validation boundaries |
 | `ui/region_playback.py` | Temporary selection clips and media lifecycle |
 | `ui/studio.py` | Application layout, queued work, player coordination, and dataset workflows |

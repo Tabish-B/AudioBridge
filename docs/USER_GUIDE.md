@@ -16,7 +16,7 @@ Choose the output format separately from processing settings:
 | AIFF | Uncompressed 16-bit or 24-bit PCM |
 | Keep original | Re-encode into WAV, FLAC, MP3, M4A, AAC, AIFF/AIF, or Opus, matching the source container |
 
-**Keep source settings** preserves sample rate and channels; PCM depth is selected separately. **ASR input** sets 16 kHz, mono, and 16-bit PCM where applicable. **Archive** sets 48 kHz and 24-bit while keeping source channels. Resampling does not recover lost information. Lossy exports are re-encoded; a preserved container is not a byte-for-byte copy.
+**Keep source settings** preserves sample rate and channels; PCM depth is selected separately for WAV, FLAC, and AIFF. The settings summary shows the selected depth. For MP3 and other lossy outputs, PCM depth is disabled because those codecs don't use PCM bit depth. **ASR input** sets 16 kHz, mono, and 16-bit PCM where applicable. **Archive** sets 48 kHz and 24-bit while keeping source channels. Resampling does not recover lost information. Lossy exports are re-encoded; a preserved container is not a byte-for-byte copy.
 
 Exports default to `~/Downloads/AudioBridge`. Existing batch outputs receive numbered names. If the destination is unavailable, choose another folder and retry; the queue is retained. FFmpeg codecs depend on your installation. OGG is accepted as input but isn't offered as an export in this build.
 
@@ -36,7 +36,7 @@ Lossless exports preserve the selected sample boundaries before any requested re
 
 ## Spectral views
 
-Choose **Spectrogram**, **Mel spectrogram**, or **MFCC**. Open **Spectral settings**, then **Apply analysis settings**.
+Choose **Spectrogram**, **Mel spectrogram**, or **MFCC**. Open **Spectral settings**, then **Apply analysis settings**. **Export view PNG** saves the full-recording image with time and frequency/coefficient axes; the PNG metadata includes source name, duration, and analysis settings. The PNG contains the rendered color image, not a numeric feature matrix.
 
 | Control | Effect |
 | --- | --- |
@@ -59,7 +59,7 @@ Parameter changes are applied together in a background worker. An older result c
 
 **Dataset audit** scans the queue and exports CSV. Fixed flags identify near-full-scale samples above 0.01%, RMS below −35 dBFS, or quiet windows above 75%. They are inspection cues, not speech detection or an ASR quality score.
 
-**Segment annotations** records manual start/end labels from the current playhead. Export its CSV before closing; annotations are session-local. If SoundFile can't decode an analysis input, convert it to WAV first.
+**Segment annotations** gives you a waveform-based interval workflow. Choose a queued recording, drag a region or enter exact times, add the interval to a named tier, then edit or play segments from the list. The tier timeline shows intervals across the recording; click a segment there or double-click its list row to jump back to it. Tiers are independent and may overlap. Export to AudioBridge's versioned JSON format or a flat CSV; annotations are session-local until exported. The JSON structure is described in [Annotation JSON](ANNOTATION_SCHEMA.md). It is an AudioBridge format and is not an ELAN `.eaf` document.
 
 ## Shortcuts
 
@@ -73,4 +73,4 @@ Parameter changes are applied together in a background worker. An older result c
 | Remove queued file | Delete / Backspace |
 | Offline help | F1 or Help & shortcuts |
 
-Single-key editor shortcuts are disabled while entering text or editing a control.
+Single-key shortcuts pause while typing in text fields. They remain available while dropdowns and time controls have focus. File and help shortcuts also remain available while entering text.
