@@ -38,3 +38,7 @@ python examples/capture_studio.py
 ```
 
 Screenshots render the actual Qt widgets offscreen with generated audio; they do not contain private recordings or model results. App version is defined in `version.py`.
+
+## Branding assets
+
+`assets/icons/AppIcon.appiconset` retains the supplied macOS icon catalog. Qt loads its PNG sizes for the application and window icons; the sidebar and README use `assets/audiobridge.png`. The selected supplied splash art is `assets/splash.png`, center-cropped at display time for a desktop startup panel. It closes when the workspace is ready, with no forced delay. `ui/resources.py` resolves these paths for source and bundled runtimes.

@@ -46,10 +46,8 @@ from version import __version__
 
 from .editor_panel import EditorPanel
 from .region_playback import RegionPlayback
+from .resources import ASSET_DIR, ROOT, application_icon
 from .widgets import FileQueue, button, card, clock, label
-
-ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
-ASSET_DIR = ROOT / "assets"
 
 
 class Events(QObject):
@@ -61,7 +59,7 @@ class AudioBridgeGUI(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"AudioBridge {__version__} · Conversion studio")
-        self.setWindowIcon(QIcon(str(ASSET_DIR / "audiobridge.png")))
+        self.setWindowIcon(application_icon())
         self.resize(1400, 950)
         self.setMinimumSize(420, 500)
         font = QFontDatabase.systemFont(QFontDatabase.SystemFont.GeneralFont).family()
