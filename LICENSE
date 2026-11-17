@@ -38,7 +38,6 @@ This application uses the following third-party libraries:
 
 - numpy: BSD License
 - soundfile: BSD License
-- pydub: MIT License
 - PySide6 / Qt: LGPLv3, GPLv3, or commercial licensing (see https://doc.qt.io/qtforpython-6/licenses.html)
 - scipy: BSD License
 

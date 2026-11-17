@@ -53,3 +53,6 @@ QLineEdit, QTextEdit { background: #101613; color: #eff4ef; border: 1px solid #3
 QCheckBox { color: #94a29c; spacing: 8px; }
 QCheckBox::indicator { width: 14px; height: 14px; background: #233328; border: 1px solid #59795a; border-radius: 3px; }
 QCheckBox::indicator:checked { background: #b8f59a; }
+QSpinBox, QDoubleSpinBox { background: #1b271f; border: 1px solid #334637; border-radius: 5px; padding: 7px; min-height: 18px; }
+QLabel#notice { background: #2a2519; color: #edc27d; border: 1px solid #5c4b2c; border-radius: 7px; padding: 10px; }
+QTextBrowser { background: #101613; border: 1px solid #334637; padding: 12px; }

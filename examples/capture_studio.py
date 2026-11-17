@@ -1,53 +1,84 @@
-"""Render a README screenshot with generated audio, without opening a desktop window."""
+"""Render documentation screenshots using synthetic audio and actual Qt widgets."""
 
 import os
 import sys
 import tempfile
 from pathlib import Path
 
-os.environ['QT_QPA_PLATFORM'] = 'offscreen'
-os.environ['QT_MEDIA_BACKEND'] = 'ffmpeg'
-
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+os.environ["QT_MEDIA_BACKEND"] = "ffmpeg"
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
+
 from examples.make_demo import make_demo
 from ui.studio import AudioBridgeGUI
 
 
 def main():
     app = QApplication([])
-    app.setStyle('Fusion')
+    app.setStyle("Fusion")
     with tempfile.TemporaryDirectory() as folder:
-        source = make_demo(Path(folder) / 'Synthetic quality-check demo.wav')
+        source = make_demo(Path(folder) / "Synthetic quality-check demo.wav")
         window = AudioBridgeGUI()
         window.resize(1512, 1080)
         window.show()
         window.add_files([source])
         window._analyze()
-        attempts = 0
+        state, attempts = 0, 0
+        destination = ROOT / "docs"
+        destination.mkdir(exist_ok=True)
+
+        def save(name):
+            if not window.grab().save(str(destination / name)):
+                raise OSError(f"Could not save screenshot: {name}")
+
         def capture():
-            nonlocal attempts
+            nonlocal state, attempts
             attempts += 1
-            if window.plot.preview is not None and window.report is not None and window.play_button.isEnabled():
-                destination = ROOT / 'docs' / 'audiobridge.png'
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                saved = window.grab().save(str(destination))
-                window.view.setCurrentText('Spectrogram')
-                app.processEvents()
-                saved = window.grab().save(str(ROOT / 'docs' / 'spectrogram.png')) and saved
-                window.close()
-                app.exit(0 if saved else 1)
-            elif attempts >= 150:
+            plot = window.editor.plot
+            ready = (
+                plot.preview is not None
+                and not plot.spectral_loading
+                and window.report is not None
+                and window.editor.play_button.isEnabled()
+            )
+            if ready:
+                if state == 0:
+                    save("audiobridge.png")
+                    window._set_page(3)
+                    window.editor.region_controls.start.setValue(2.5)
+                    window.editor.region_controls.end.setValue(6.2)
+                    state = 1
+                elif state == 1:
+                    save("editor.png")
+                    window.editor.view.setCurrentText("Spectrogram")
+                    state = 2
+                elif state == 2 and plot.preview["spectral_settings"].mode == "Spectrogram":
+                    save("spectrogram.png")
+                    window.editor.view.setCurrentText("Mel spectrogram")
+                    state = 3
+                elif state == 3 and plot.preview["spectral_settings"].mode == "Mel spectrogram":
+                    save("mel.png")
+                    window.editor.view.setCurrentText("MFCC")
+                    state = 4
+                elif state == 4 and plot.preview["spectral_settings"].mode == "MFCC":
+                    save("mfcc.png")
+                    window.close()
+                    app.exit(0)
+                    return
+            if attempts >= 600:
+                print("Screenshot timed out:", window.status.text())
                 window.close()
                 app.exit(1)
-            else:
-                QTimer.singleShot(100, capture)
+                return
+            QTimer.singleShot(100, capture)
+
         QTimer.singleShot(400, capture)
         return app.exec()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

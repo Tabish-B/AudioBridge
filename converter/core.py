@@ -7,10 +7,11 @@ Handles audio conversion using FFmpeg
 import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
-from .inspector import AudioInspector
-from .verifier import ConversionVerifier
+
 from .ffmpeg_utils import check_ffmpeg
 from .formats import codec_options, output_suffix
+from .inspector import AudioInspector
+from .verifier import ConversionVerifier
 
 
 class AudioConverter:
@@ -19,7 +20,14 @@ class AudioConverter:
         self.inspector = AudioInspector()
         self.verifier = ConversionVerifier()
 
-    def convert(self, input_path: Path, output_path: Path, sample_rate: Optional[int] = None, mono: bool = False, bit_depth: int = 16) -> Tuple[int, str]:
+    def convert(
+        self,
+        input_path: Path,
+        output_path: Path,
+        sample_rate: Optional[int] = None,
+        mono: bool = False,
+        bit_depth: int = 16,
+    ) -> Tuple[int, str]:
         input_path = Path(input_path)
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -31,8 +39,18 @@ class AudioConverter:
         if not metadata.get("codec") or metadata.get("codec") == "none":
             return 1, "This file does not contain an audio stream. Cannot convert to audio format."
 
-        cmd = [str(self.ffmpeg_path), "-nostdin", "-hide_banner", "-i", str(input_path), "-map", "0:a:0", "-vn", "-n"]
-        
+        cmd = [
+            str(self.ffmpeg_path),
+            "-nostdin",
+            "-hide_banner",
+            "-i",
+            str(input_path),
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-n",
+        ]
+
         try:
             cmd.extend(codec_options(output_path.suffix.lower(), bit_depth))
         except (ValueError, KeyError) as exc:
@@ -64,15 +82,32 @@ class AudioConverter:
         except Exception as e:
             return 1, f"Conversion error: {str(e)}"
 
-    def convert_with_verification(self, input_path: Path, output_path: Path, sample_rate: Optional[int] = None, mono: bool = False, bit_depth: int = 16) -> dict:
+    def convert_with_verification(
+        self,
+        input_path: Path,
+        output_path: Path,
+        sample_rate: Optional[int] = None,
+        mono: bool = False,
+        bit_depth: int = 16,
+    ) -> dict:
         if output_path.exists():
-            return {"success": False, "output_path": output_path, "error": f"Output file already exists: {output_path}", "verification": None}
+            return {
+                "success": False,
+                "output_path": output_path,
+                "error": f"Output file already exists: {output_path}",
+                "verification": None,
+            }
 
         exit_code, error_msg = self.convert(input_path, output_path, sample_rate, mono, bit_depth)
         verification = self.verifier.verify(output_path, exit_code)
 
         if not verification["success"]:
-            return {"success": False, "output_path": output_path, "error": (error_msg if exit_code else verification.get("error")), "verification": verification}
+            return {
+                "success": False,
+                "output_path": output_path,
+                "error": (error_msg if exit_code else verification.get("error")),
+                "verification": verification,
+            }
 
         warnings = []
         metadata = self.inspector.inspect(output_path)
@@ -84,13 +119,21 @@ class AudioConverter:
             input_size = input_path.stat().st_size
             output_size = output_path.stat().st_size
             if output_size > input_size * 2:
-                warnings.append(f"Output file is {output_size / input_size:.1f}x larger than input (WAV is uncompressed)")
+                warnings.append(
+                    f"Output file is {output_size / input_size:.1f}x larger than input (WAV is uncompressed)"
+                )
         except Exception:
             pass
 
-        return {"success": True, "output_path": output_path, "error": None, "verification": verification, "warning": "; ".join(warnings) if warnings else None}
+        return {
+            "success": True,
+            "output_path": output_path,
+            "error": None,
+            "verification": verification,
+            "warning": "; ".join(warnings) if warnings else None,
+        }
 
-    def get_unique_output_path(self, output_dir: Path, base_name: str, suffix='.wav') -> Path:
+    def get_unique_output_path(self, output_dir: Path, base_name: str, suffix=".wav") -> Path:
         output_dir = Path(output_dir)
         base_name = Path(base_name)
         if not base_name.name.lower().endswith(suffix):
@@ -106,7 +149,16 @@ class AudioConverter:
                 return new_path
             counter += 1
 
-    def batch_convert(self, input_files: list, output_dir: Path, sample_rate: Optional[int] = None, mono: bool = False, bit_depth: int = 16, progress_callback=None, output_format='WAV') -> dict:
+    def batch_convert(
+        self,
+        input_files: list,
+        output_dir: Path,
+        sample_rate: Optional[int] = None,
+        mono: bool = False,
+        bit_depth: int = 16,
+        progress_callback=None,
+        output_format="WAV",
+    ) -> dict:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         results = []
@@ -116,7 +168,12 @@ class AudioConverter:
         for i, input_path in enumerate(input_files):
             input_path = Path(input_path)
             if not self.inspector.is_supported(input_path):
-                result = {"success": False, "input_path": input_path, "output_path": None, "error": f"Unsupported file format: {input_path.suffix}"}
+                result = {
+                    "success": False,
+                    "input_path": input_path,
+                    "output_path": None,
+                    "error": f"Unsupported file format: {input_path.suffix}",
+                }
                 results.append(result)
                 failed += 1
                 if progress_callback:
@@ -126,7 +183,9 @@ class AudioConverter:
             try:
                 suffix = output_suffix(input_path, output_format)
                 output_path = self.get_unique_output_path(output_dir, input_path.stem, suffix)
-                result = self.convert_with_verification(input_path, output_path, sample_rate, mono, bit_depth)
+                result = self.convert_with_verification(
+                    input_path, output_path, sample_rate, mono, bit_depth
+                )
             except ValueError as exc:
                 result = dict(success=False, output_path=None, error=str(exc))
             result["input_path"] = input_path
@@ -140,4 +199,9 @@ class AudioConverter:
             if progress_callback:
                 progress_callback(i + 1, len(input_files), input_path, result)
 
-        return {"total": len(input_files), "successful": successful, "failed": failed, "results": results}
+        return {
+            "total": len(input_files),
+            "successful": successful,
+            "failed": failed,
+            "results": results,
+        }

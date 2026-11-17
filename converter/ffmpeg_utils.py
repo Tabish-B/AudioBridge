@@ -29,7 +29,7 @@ def get_executable_path(executable_name: str) -> Optional[Path]:
         Path to the executable if found, None otherwise
     """
     # Check for bundled executable first
-    if getattr(sys, 'frozen', False):
+    if getattr(sys, "frozen", False):
         # Running as packaged executable (PyInstaller)
         app_dir = Path(sys.executable).parent
     else:
@@ -37,7 +37,9 @@ def get_executable_path(executable_name: str) -> Optional[Path]:
         app_dir = Path(__file__).parent.parent
 
     # Check for executable in app directory
-    bundled_path = app_dir / f"{executable_name}.exe" if sys.platform == "win32" else app_dir / executable_name
+    bundled_path = (
+        app_dir / f"{executable_name}.exe" if sys.platform == "win32" else app_dir / executable_name
+    )
     if bundled_path.exists() and bundled_path.is_file():
         return bundled_path
 
@@ -104,15 +106,13 @@ def get_ffmpeg_version() -> Optional[str]:
     try:
         ffmpeg_path = check_ffmpeg()
         import subprocess
+
         result = subprocess.run(
-            [str(ffmpeg_path), "-version"],
-            capture_output=True,
-            text=True,
-            timeout=10
+            [str(ffmpeg_path), "-version"], capture_output=True, text=True, timeout=10
         )
         if result.returncode == 0:
             # Extract version from first line
-            first_line = result.stdout.split('\n')[0]
+            first_line = result.stdout.split("\n")[0]
             return first_line
     except Exception:
         pass

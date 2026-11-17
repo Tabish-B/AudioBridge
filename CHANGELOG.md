@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.0.0 — 2026-11-17
+
+- Added a dedicated audio editor with configurable FFT size, hop length, window, frequency and dB ranges, and linear/logarithmic frequency display.
+- Added Mel spectrogram and MFCC views with explicit processing conventions and appropriate axes/legends.
+- Added continuous zoom, decoded close-up waveform windows, drag selection, and editable selection timestamps.
+- Added exact-region playback through temporary PCM clips, selected-region export, and two-file splitting at the cursor.
+- Added staged region exports and exclusive destination creation; sources and existing outputs are preserved.
+- Used the supplied analysis and edge-case designs for source properties, import notices, destination errors, empty-state controls, and offline help.
+- Separated the editor view, plot, controls, playback, and numeric processing into focused modules.
+- Added numerical reference tests, editing/interaction tests, expanded-control reflow tests, and reproducible lint/format checks.
+- Replaced the long README with a concise overview, fresh screenshots, and separate usage, methods, and development guides.
+
 ## 3.0.0 — 2026-11-17
 
 - Added a separate output-format selector for WAV, FLAC, MP3, AIFF, and supported original audio containers.

@@ -9,7 +9,8 @@ Verifies that audio conversions completed successfully:
 
 import subprocess
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict
+
 from .ffmpeg_utils import check_ffmpeg, check_ffprobe
 
 
@@ -43,7 +44,7 @@ class ConversionVerifier:
             return {
                 "success": False,
                 "error": f"Conversion process failed with exit code {exit_code}",
-                "checks": checks
+                "checks": checks,
             }
 
         # Check 2: Output file exists
@@ -53,7 +54,7 @@ class ConversionVerifier:
             return {
                 "success": False,
                 "error": f"Output file does not exist: {output_path}",
-                "checks": checks
+                "checks": checks,
             }
 
         # Check 3: Output file is not empty
@@ -63,7 +64,7 @@ class ConversionVerifier:
             return {
                 "success": False,
                 "error": f"Output file is empty: {output_path}",
-                "checks": checks
+                "checks": checks,
             }
 
         # Check 4: Output can be decoded (using FFprobe)
@@ -72,15 +73,11 @@ class ConversionVerifier:
             return {
                 "success": False,
                 "error": f"Output file cannot be decoded: {output_path}",
-                "checks": checks
+                "checks": checks,
             }
 
         # All checks passed
-        return {
-            "success": True,
-            "error": None,
-            "checks": checks
-        }
+        return {"success": True, "error": None, "checks": checks}
 
     def _can_decode(self, path: Path) -> bool:
         """
@@ -91,10 +88,13 @@ class ConversionVerifier:
         try:
             cmd = [
                 str(self.ffprobe_path),
-                "-v", "error",
-                "-show_entries", "stream=codec_type",
-                "-of", "json",
-                str(path)
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "json",
+                str(path),
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -102,6 +102,7 @@ class ConversionVerifier:
             # Success if exit code is 0 and we can parse JSON
             if result.returncode == 0:
                 import json
+
                 json.loads(result.stdout)
                 return True
 
@@ -133,19 +134,11 @@ class ConversionVerifier:
 
         for output_path, exit_code in results:
             verification = self.verify(output_path, exit_code)
-            details.append({
-                "path": str(output_path),
-                "verification": verification
-            })
+            details.append({"path": str(output_path), "verification": verification})
 
             if verification["success"]:
                 successful += 1
             else:
                 failed += 1
 
-        return {
-            "total": total,
-            "successful": successful,
-            "failed": failed,
-            "details": details
-        }
+        return {"total": total, "successful": successful, "failed": failed, "details": details}

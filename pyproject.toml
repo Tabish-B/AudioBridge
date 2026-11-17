@@ -1,0 +1,14 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# These entry points configure Qt before importing it.
+"audio_converter.py" = ["E402"]
+"ui/studio.py" = ["E402"]
+"tests/test_studio.py" = ["E402"]
+# The screenshot script sets the offscreen platform and repository import path.
+"examples/capture_studio.py" = ["E402"]

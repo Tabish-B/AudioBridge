@@ -8,10 +8,11 @@ Uses FFprobe to inspect audio files and extract metadata:
 - Codec information
 """
 
-import subprocess
 import json
+import subprocess
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
 from .ffmpeg_utils import check_ffprobe
 
 
@@ -19,15 +20,58 @@ class AudioInspector:
     """Inspect audio files using FFprobe."""
 
     SUPPORTED_AUDIO_EXTS = {
-        ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".amr",
-        ".wma", ".m4p", ".aiff", ".aif", ".au", ".ra", ".ac3", ".dts",
-        ".mp2", ".mp1", ".m4b", ".m4r", ".gsm", ".dsd", ".dsf", ".dff"
+        ".wav",
+        ".mp3",
+        ".m4a",
+        ".aac",
+        ".flac",
+        ".ogg",
+        ".opus",
+        ".amr",
+        ".wma",
+        ".m4p",
+        ".aiff",
+        ".aif",
+        ".au",
+        ".ra",
+        ".ac3",
+        ".dts",
+        ".mp2",
+        ".mp1",
+        ".m4b",
+        ".m4r",
+        ".gsm",
+        ".dsd",
+        ".dsf",
+        ".dff",
     }
     SUPPORTED_VIDEO_EXTS = {
-        ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm",
-        ".mts", ".m2ts", ".ts", ".mpg", ".mpeg", ".3gp", ".3g2",
-        ".asf", ".rm", ".rmvb", ".vob", "divx", ".xvid", ".mxf",
-        ".f4v", ".ogv", ".m4v", ".dv", ".swf"
+        ".mp4",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".wmv",
+        ".flv",
+        ".webm",
+        ".mts",
+        ".m2ts",
+        ".ts",
+        ".mpg",
+        ".mpeg",
+        ".3gp",
+        ".3g2",
+        ".asf",
+        ".rm",
+        ".rmvb",
+        ".vob",
+        "divx",
+        ".xvid",
+        ".mxf",
+        ".f4v",
+        ".ogv",
+        ".m4v",
+        ".dv",
+        ".swf",
     }
 
     def __init__(self):
@@ -71,10 +115,13 @@ class AudioInspector:
             # Use FFprobe to get stream information
             cmd = [
                 str(self.ffprobe_path),
-                "-v", "error",
-                "-show_entries", "stream=codec_type,codec_name,sample_rate,channels,duration:format=format_name,duration",
-                "-of", "json",
-                str(path)
+                "-v",
+                "error",
+                "-show_entries",
+                "stream=codec_type,codec_name,sample_rate,channels,duration:format=format_name,duration",
+                "-of",
+                "json",
+                str(path),
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
@@ -109,10 +156,7 @@ class AudioInspector:
             else:
                 duration = 0.0
 
-            is_video = any(
-                s.get("codec_type") == "video"
-                for s in data.get("streams", [])
-            )
+            is_video = any(s.get("codec_type") == "video" for s in data.get("streams", []))
 
             return {
                 "sample_rate": sample_rate,
@@ -121,7 +165,7 @@ class AudioInspector:
                 "codec": codec,
                 "format": format_name,
                 "is_video": is_video,
-                "error": None
+                "error": None,
             }
 
         except subprocess.TimeoutExpired:
