@@ -10,6 +10,7 @@ from typing import Optional, Tuple
 from .inspector import AudioInspector
 from .verifier import ConversionVerifier
 from .ffmpeg_utils import check_ffmpeg
+from .formats import codec_options, output_suffix
 
 
 class AudioConverter:
@@ -30,14 +31,12 @@ class AudioConverter:
         if not metadata.get("codec") or metadata.get("codec") == "none":
             return 1, "This file does not contain an audio stream. Cannot convert to audio format."
 
-        cmd = [str(self.ffmpeg_path), "-nostdin", "-hide_banner", "-i", str(input_path), "-map", "0:a?"]
+        cmd = [str(self.ffmpeg_path), "-nostdin", "-hide_banner", "-i", str(input_path), "-map", "0:a:0", "-vn", "-n"]
         
-        if bit_depth == 16:
-            cmd.extend(["-acodec", "pcm_s16le"])
-        elif bit_depth == 24:
-            cmd.extend(["-acodec", "pcm_s24le"])
-        else:
-            return 1, f"Unsupported bit depth: {bit_depth}"
+        try:
+            cmd.extend(codec_options(output_path.suffix.lower(), bit_depth))
+        except (ValueError, KeyError) as exc:
+            return 1, str(exc)
 
         if sample_rate:
             cmd.extend(["-ar", str(sample_rate)])
@@ -73,7 +72,7 @@ class AudioConverter:
         verification = self.verifier.verify(output_path, exit_code)
 
         if not verification["success"]:
-            return {"success": False, "output_path": output_path, "error": verification.get("error", error_msg), "verification": verification}
+            return {"success": False, "output_path": output_path, "error": (error_msg if exit_code else verification.get("error")), "verification": verification}
 
         warnings = []
         metadata = self.inspector.inspect(output_path)
@@ -91,23 +90,23 @@ class AudioConverter:
 
         return {"success": True, "output_path": output_path, "error": None, "verification": verification, "warning": "; ".join(warnings) if warnings else None}
 
-    def get_unique_output_path(self, output_dir: Path, base_name: str) -> Path:
+    def get_unique_output_path(self, output_dir: Path, base_name: str, suffix='.wav') -> Path:
         output_dir = Path(output_dir)
         base_name = Path(base_name)
-        if base_name.suffix.lower() != ".wav":
-            base_name = base_name.with_suffix(".wav")
+        if not base_name.name.lower().endswith(suffix):
+            base_name = Path(base_name.name + suffix)
         output_path = output_dir / base_name
         if not output_path.exists():
             return output_path
         counter = 1
         while True:
-            new_name = f"{base_name.stem}_{counter}.wav"
+            new_name = f"{base_name.stem}_{counter}{suffix}"
             new_path = output_dir / new_name
             if not new_path.exists():
                 return new_path
             counter += 1
 
-    def batch_convert(self, input_files: list, output_dir: Path, sample_rate: Optional[int] = None, mono: bool = False, bit_depth: int = 16, progress_callback=None) -> dict:
+    def batch_convert(self, input_files: list, output_dir: Path, sample_rate: Optional[int] = None, mono: bool = False, bit_depth: int = 16, progress_callback=None, output_format='WAV') -> dict:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         results = []
@@ -124,8 +123,12 @@ class AudioConverter:
                     progress_callback(i + 1, len(input_files), input_path, result)
                 continue
 
-            output_path = self.get_unique_output_path(output_dir, input_path.stem)
-            result = self.convert_with_verification(input_path, output_path, sample_rate, mono, bit_depth)
+            try:
+                suffix = output_suffix(input_path, output_format)
+                output_path = self.get_unique_output_path(output_dir, input_path.stem, suffix)
+                result = self.convert_with_verification(input_path, output_path, sample_rate, mono, bit_depth)
+            except ValueError as exc:
+                result = dict(success=False, output_path=None, error=str(exc))
             result["input_path"] = input_path
             results.append(result)
 

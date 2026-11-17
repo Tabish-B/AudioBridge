@@ -135,6 +135,66 @@ class StudioTests(unittest.TestCase):
         self.assertIsNone(self.window.selected_file)
         self.assertIsNone(self.window.report)
 
+    def test_zoom_scroll_seek_and_spectrogram(self):
+        self.load()
+        w = self.window
+        prepared = dict(w.plot.preview)
+        prepared['seconds'] = 300
+        w._show_preview(prepared)
+        w.zoom.setCurrentIndex(2)
+        self.assertEqual(w.timeline_scroll.maximum(), 180000)
+        w.follow.setChecked(False)
+        w.timeline_scroll.setValue(150000)
+        self.assertEqual(w.plot.offset, 150)
+        self.assertEqual(w.plot.visible_seconds(), 120)
+        w.view.setCurrentText('Spectrogram')
+        QApplication.processEvents()
+        self.assertFalse(w.spectrum_legend.isHidden())
+        self.assertIsNotNone(w.plot.image)
+        image = w.plot.grab().toImage()
+        self.assertFalse(image.isNull())
+        w.zoom.setCurrentIndex(0)
+        self.assertEqual(w.timeline_scroll.maximum(), 0)
+        self.assertEqual(w.plot.visible_seconds(), 300)
+
+    def test_small_windows_reflow_without_control_overlap(self):
+        self.load()
+        self.window._analyze()
+        wait_for(lambda: self.window.report is not None)
+        self.window.view.setCurrentText('Spectrogram')
+        from PySide6.QtWidgets import QBoxLayout
+        for width, height in [(420, 550), (640, 600), (800, 600), (1024, 768), (1400, 950)]:
+            self.window.resize(width, height)
+            QTest.qWait(80)
+            self.assertEqual(self.window.width(), width)
+            self.assertEqual(self.window.pages.widget(0).horizontalScrollBar().maximum(), 0)
+            self.assertEqual(self.window.body.direction(), QBoxLayout.Direction.TopToBottom if width < 1100 else QBoxLayout.Direction.LeftToRight)
+            # Scrollable content may be taller than the viewport, but its controls cannot overlap.
+            controls = [widget for widget in [self.window.plot, self.window.timeline_scroll, self.window.follow, self.window.seek_slider, self.window.metrics] if not widget.isHidden()]
+            for first, second in zip(controls, controls[1:]):
+                self.assertLessEqual(first.geometry().bottom(), second.geometry().top())
+            self.assertGreaterEqual(self.window.plot.width(), 200)
+            self.assertGreaterEqual(self.window.plot.height(), 130)
+            self.assertEqual(self.window.sidebar.isHidden(), width < 950)
+
+    def test_research_audit_and_segment_annotations(self):
+        self.load()
+        w = self.window
+        w._audit()
+        wait_for(lambda: not w.audit_busy)
+        self.assertEqual(len(w.audit_results), 1)
+        self.assertNotIn('error', w.audit_results[0])
+        w.player.setPosition(200)
+        w._mark_start()
+        w.player.setPosition(1200)
+        w.annotation_label.setText('background noise')
+        w._mark_end()
+        self.assertEqual(w.annotations[0]['start_seconds'], .2)
+        self.assertEqual(w.annotations[0]['end_seconds'], 1.2)
+        destination = self.base / 'annotations.csv'
+        w._write_csv(destination, w.annotations, ['file', 'start_seconds', 'end_seconds', 'label'])
+        self.assertIn('background noise', destination.read_text())
+
 
 if __name__ == '__main__':
     unittest.main()

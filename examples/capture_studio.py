@@ -35,6 +35,9 @@ def main():
                 destination = ROOT / 'docs' / 'audiobridge.png'
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 saved = window.grab().save(str(destination))
+                window.view.setCurrentText('Spectrogram')
+                app.processEvents()
+                saved = window.grab().save(str(ROOT / 'docs' / 'spectrogram.png')) and saved
                 window.close()
                 app.exit(0 if saved else 1)
             elif attempts >= 150:

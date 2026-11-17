@@ -46,3 +46,10 @@ QToolTip { background: #233328; color: #eff4ef; border: 1px solid #405a41; paddi
 QMessageBox, QFileDialog { background: #151b18; }
 
 QComboBox::down-arrow { image: url(@ASSET_DIR@/chevron.svg); width: 9px; height: 6px; }
+QScrollBar:horizontal { background: #101613; height: 14px; border: none; }
+QScrollBar::handle:horizontal { background: #59795a; min-width: 24px; border-radius: 5px; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QLineEdit, QTextEdit { background: #101613; color: #eff4ef; border: 1px solid #334637; border-radius: 7px; padding: 10px; }
+QCheckBox { color: #94a29c; spacing: 8px; }
+QCheckBox::indicator { width: 14px; height: 14px; background: #233328; border: 1px solid #59795a; border-radius: 3px; }
+QCheckBox::indicator:checked { background: #b8f59a; }

@@ -50,9 +50,28 @@ class AudioChecksTests(unittest.TestCase):
         path = self.base / 'silence.wav'
         sf.write(path, np.zeros(16000 * 4), 16000)
         preview = build_preview(path)
-        self.assertLessEqual(len(preview['low']), 1200)
+        self.assertLessEqual(len(preview['low']), 12000)
         self.assertTrue(np.isfinite(preview['spectrum']).all())
         self.assertEqual(preview['seconds'], 4)
+
+    def test_signal_and_spectrogram_continue_after_two_minutes(self):
+        rate = 8000
+        data = np.zeros(rate * 155, dtype=np.float32)
+        tone = .5 * np.sin(2 * np.pi * 1000 * np.arange(rate * 5) / rate)
+        data[rate * 145:rate * 150] = tone
+        path = self.base / 'long.wav'
+        sf.write(path, data, rate)
+        preview = build_preview(path)
+        self.assertAlmostEqual(preview['seconds'], 155, places=2)
+        envelope = preview['high']
+        self.assertGreater(envelope[int(len(envelope) * 145 / 155):].max(), .4)
+        self.assertLess(envelope[:int(len(envelope) * 120 / 155)].max(), .001)
+        power = preview['spectrum_db']
+        # A 1 kHz tone at 145 s must appear at the corresponding time/frequency.
+        column = round(147 / 155 * power.shape[1])
+        peak_frequency = np.argmax(power[:, column]) * rate / 1024
+        self.assertAlmostEqual(peak_frequency, 1000, delta=16)
+        self.assertGreater(power[:, column].max(), -30)
 
 
 if __name__ == '__main__':

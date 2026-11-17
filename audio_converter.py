@@ -12,11 +12,13 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from ui.studio import AudioBridgeGUI, ASSET_DIR
+from version import __version__
 
 
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName('AudioBridge')
+    app.setApplicationVersion(__version__)
     app.setOrganizationName('AudioBridge')
     app.setWindowIcon(QIcon(str(ASSET_DIR / 'audiobridge.png')))
     app.setStyle('Fusion')
