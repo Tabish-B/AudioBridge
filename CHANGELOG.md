@@ -7,6 +7,7 @@
 - Kept playback and file shortcuts available when dropdowns or time controls have focus; text entry keeps its normal key behavior.
 - Reworked annotations around waveform intervals and named tiers, with segment editing/playback and a versioned AudioBridge JSON export.
 - Replaced the private macOS system-font alias with explicit UI and Indic fallback fonts.
+- Regenerated app icons at native sizes to remove the soft color fringe around their edges.
 
 ## 4.0.0 — 2026-11-17
 
