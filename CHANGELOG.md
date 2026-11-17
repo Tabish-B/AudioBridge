@@ -8,6 +8,7 @@
 - Reworked annotations around waveform intervals and named tiers, with segment editing/playback and a versioned AudioBridge JSON export.
 - Replaced the private macOS system-font alias with explicit UI and Indic fallback fonts.
 - Regenerated app icons at native sizes to remove the soft color fringe around their edges.
+- Marked Retina icon scale factors so macOS can select the correct high-resolution Dock bitmap.
 
 ## 4.0.0 — 2026-11-17
 

@@ -27,5 +27,7 @@ def application_icon():
     icon = QIcon()
     catalog = json.loads((ICON_SET / "Contents.json").read_text())
     for entry in catalog["images"]:
-        icon.addPixmap(QPixmap(str(ICON_SET / entry["filename"])))
+        pixmap = QPixmap(str(ICON_SET / entry["filename"]))
+        pixmap.setDevicePixelRatio(float(entry["scale"].removesuffix("x")))
+        icon.addPixmap(pixmap)
     return icon
