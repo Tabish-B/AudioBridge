@@ -41,4 +41,4 @@ Screenshots render the actual Qt widgets offscreen with generated audio; they do
 
 ## Branding assets
 
-`assets/icons/AppIcon.appiconset` retains the supplied macOS icon catalog. Qt loads its PNG sizes for the application and window icons; the sidebar and README use `assets/audiobridge.png`. The selected supplied splash art is `assets/splash.png`, center-cropped at display time for a desktop startup panel. It closes when the workspace is ready, with no forced delay. `ui/resources.py` resolves these paths for source and bundled runtimes.
+`assets/icons/AppIcon.appiconset` retains the supplied square macOS icon catalog; macOS applies its own mask when it displays a bundled app icon. Qt masks the runtime icon with the rounded silhouette from `assets/audiobridge.png`, which is also used in the sidebar and README. `assets/icons/AudioBridge.ico` provides Windows icon sizes for executable packaging. The selected supplied splash art is `assets/splash.png`, center-cropped at display time for a desktop startup panel. It closes when the workspace is ready, with no forced delay. `ui/resources.py` resolves these paths for source and bundled runtimes.
