@@ -1,0 +1,1 @@
+"""AudioBridge's desktop interface."""

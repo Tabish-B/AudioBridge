@@ -24,14 +24,11 @@ SOFTWARE.
 
 FFmpeg License Notice
 
-This application includes FFmpeg, which is licensed under the GNU General Public
-License version 2.0 (or later).
+This application uses an external FFmpeg installation. FFmpeg's license
+is LGPL or GPL depending on how that build was configured.
 
-FFmpeg is copyright (c) 2000-2024 Fabrice Bellard, et al.
-
-FFmpeg source code is available at: https://ffmpeg.org/
-
-The FFmpeg license can be found at: https://ffmpeg.org/legal.html
+FFmpeg source code and license information are available at:
+https://ffmpeg.org/legal.html
 
 ---
 
@@ -42,6 +39,7 @@ This application uses the following third-party libraries:
 - numpy: BSD License
 - soundfile: BSD License
 - pydub: MIT License
-- tkinter: Python License (PSF License)
+- PySide6 / Qt: LGPLv3, GPLv3, or commercial licensing (see https://doc.qt.io/qtforpython-6/licenses.html)
+- scipy: BSD License
 
 See individual library documentation for full license terms.

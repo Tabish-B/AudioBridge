@@ -1,126 +1,121 @@
+<p align="center">
+  <img src="assets/audiobridge.png" width="72" alt="AudioBridge logo">
+</p>
+
 # AudioBridge
 
-A professional cross-platform audio conversion and analysis tool designed for researchers, audio engineers, and ML practitioners. Convert any audio or video file to WAV format with customizable settings, visualize waveforms, and analyze audio quality metrics.
+I built AudioBridge to make audio preparation easier: convert recordings to WAV, listen back, and check the signal before sending it to an ASR model or an audio repair pipeline. Everything runs locally with Python, Qt, and FFmpeg.
 
-## Features
+![AudioBridge conversion studio with a synthetic test recording](docs/audiobridge.png)
 
-- **Modern GUI**: Figma-inspired dark theme with 3-column layout
-- **File Queue**: Upload and manage multiple files for batch conversion
-- **Waveform Preview**: Embedded waveform visualization for quick quality inspection
-- **Audio Analysis**: Built-in quality metrics (SNR, dynamic range, RMS, peak level)
-- **Cross-Platform Support**: Works on Windows, macOS, and Linux
-- **Wide Format Support**: Converts MP3, M4A, AAC, FLAC, OGG, OPUS, MP4, MKV, AVI, MOV, MTS, and more
-- **Non-Destructive**: Original files are never modified
-- **Batch Processing**: Convert multiple files at once
-- **Customizable Settings**: Sample rate, channels, bit depth
-- **Verification**: Ensures conversions complete successfully
+The screenshot uses a generated test signal, not a speech recording or an ML repair result.
 
-## Installation
+## What it does
 
-### Prerequisites
+- Batch conversion from audio and video to PCM WAV
+- A speech / ASR preset: 16 kHz, mono, 16-bit PCM
+- A built-in player with play/pause, seek, restart, speed, and volume controls
+- Waveform and spectrogram previews, with a playhead and click-to-seek
+- Full-file checks for peak and RMS levels, crest factor, samples near full scale, and quiet sections
+- JSON analysis reports
+- File selection, folder import, and drag and drop
 
-- Python 3.8 or higher
-- FFmpeg (for audio conversion)
-- numpy, matplotlib, scipy (for audio analysis)
+Decoding, analysis, and conversion run in background workers. Previews are prepared once, cached for up to four files, and reused when switching views. The queue and player use Qt widgets; plotting doesn't run Matplotlib on the UI thread.
 
-#### Installing FFmpeg
+## Run it
 
-**macOS:**
+Use Python 3.9–3.12 and install FFmpeg, including FFprobe. On macOS, the Qt version used here requires macOS 12 or newer.
+
 ```bash
+# macOS
 brew install ffmpeg
-```
 
-**Linux (Ubuntu/Debian):**
-```bash
-sudo apt update
+# Ubuntu / Debian
 sudo apt install ffmpeg
 ```
 
-**Windows:**
-Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH.
-
-### Installing Python Dependencies
+On Windows, install an FFmpeg build linked from [ffmpeg.org](https://ffmpeg.org/download.html) and add its `bin` directory to PATH.
 
 ```bash
-pip install -r requirements.txt
-```
-
-## Usage
-
-### GUI Application
-
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+python -m pip install -r requirements.txt
 python audio_converter.py
 ```
 
-## Audio Analysis Features
+The desktop interface needs a display and an audio output device. On macOS, playback uses Qt's native AVFoundation backend; other platforms use Qt's default media backend. Codec availability depends on that backend. Conversion and previews use the installed FFmpeg.
 
-AudioBridge provides the following analysis capabilities useful for ASR and audio repair work:
+## Using the studio
 
-- **Waveform Visualization**: Visualize audio waveform for quality inspection
-- **Quality Metrics**:
-  - SNR (Signal-to-Noise Ratio) estimation
-  - Dynamic range measurement
-  - RMS (Root Mean Square) level
-  - Peak level detection
-  - Duration and sample rate information
-  - Channel count
+1. Add files, import a folder, or drop recordings onto the window. Folder import includes supported files directly inside that folder.
+2. Select a file to load its preview. Click **Play** or press Space to listen. Use the timeline to seek through the whole recording, or click the waveform to seek within the preview.
+3. Choose **Waveform** or **Spectrogram**. Both show up to the first 120 seconds, downmixed and resampled to 16 kHz for display. The spectrogram covers 0–8 kHz; use the original sample rate from the analysis report when assessing the source.
+4. Click **Analyze file** for measurements, then **Export JSON** to save them.
+5. Pick export settings and an output folder, then convert the queue.
 
-These metrics are essential for:
-- Pre-processing decisions for ASR models
-- Audio quality assessment before repair
-- Comparing audio source quality
-- Validating audio after restoration work
+Exports default to `Downloads/AudioBridge`. Source files stay intact, and existing output filenames get a numbered suffix. Use **Remove**, Delete/Backspace, or **Clear all** to edit the queue. Queue changes are paused during conversion.
 
-## Project Structure
+The speech preset is a starting point. Check your model's expected sample rate and channel count before exporting. **Keep source** preserves sample rate and channels but still writes 16-bit PCM WAV; choose 24-bit explicitly if needed.
 
+## What the measurements mean
+
+| Measurement | How it is calculated |
+| --- | --- |
+| Peak | Highest absolute sample value, reported in dBFS |
+| RMS | Energy across all samples and channels, reported in dBFS |
+| Crest factor | Peak level minus RMS level, in dB |
+| Near full scale | Percentage of channel samples with absolute value ≥ 0.999 |
+| Quiet audio | Percentage of time in 20 ms windows whose RMS is below −40 dBFS |
+
+Analysis scans the full recording in small blocks. SoundFile handles analysis decoding; if it cannot read a format, convert the file to WAV first. The player and FFmpeg preview can support formats that the analyzer cannot read directly.
+
+Quiet sections are measured by level, so they aren't voice activity detection. Samples near full scale can suggest clipping, but this check can't prove that a recording was clipped earlier in the chain. Crest factor isn't a measurement of a recording's complete dynamic range. Digital silence is displayed at a numerical floor of −240 dBFS.
+
+AudioBridge doesn't estimate true SNR, transcribe speech, or run an ML repair model. It helps inspect and prepare recordings for those steps.
+
+## Try a test recording
+
+The demo generator makes a deterministic synthetic signal with quiet sections and a short full-scale segment. It is useful for checking the controls and measurements without using a private recording.
+
+```bash
+python examples/make_demo.py /tmp/audiobridge-demo.wav
+python audio_converter.py /tmp/audiobridge-demo.wav
 ```
+
+You can also pass one or more recordings as command-line arguments. To regenerate the README screenshot with synthetic audio, run `python examples/capture_studio.py`.
+
+## Checks
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+The regression suite checks single-click play/pause, seeking, speed and volume changes, UI responsiveness during slow decoding, stale preview results, analysis, queue changes, and conversion without overwriting existing exports. Playback tests are muted and need an available media backend. On Linux without a display, tests use Qt's offscreen platform.
+
+## Project layout
+
+```text
 AudioBridge/
-├── audio_converter.py          # Main GUI application
+├── audio_converter.py       # Desktop entry point
+├── ui/
+│   ├── studio.py            # Workspace, player, and background jobs
+│   └── theme.qss            # Styles based on the supplied HTML/CSS design
 ├── converter/
-│   ├── __init__.py
-│   ├── core.py                  # Conversion logic
-│   ├── inspector.py             # Audio inspection
-│   ├── verifier.py              # Conversion verification
-│   ├── analyzer.py              # Audio analysis module
-│   └── ffmpeg_utils.py          # FFmpeg detection
-├── requirements.txt              # Python dependencies
-├── README.md                    # This file
-└── LICENSE                      # MIT License
+│   ├── core.py              # FFmpeg conversion
+│   ├── inspector.py         # FFprobe metadata
+│   ├── verifier.py          # Export verification
+│   ├── analyzer.py          # Full-file level checks
+│   ├── preview.py           # Bounded waveform / spectrogram preparation
+│   └── ffmpeg_utils.py      # Executable discovery
+├── assets/audiobridge.png   # App logo
+├── docs/audiobridge.png     # GUI screenshot
+├── examples/                # Demo signal and screenshot generator
+└── tests/
 ```
 
-## Supported Formats
+## License and dependencies
 
-### Audio Formats
-WAV, MP3, M4A, AAC, FLAC, OGG, OPUS, AMR, WMA, AIFF, AU, AC3, DTS, MP2, and more
+The project code is licensed under MIT; see [LICENSE](LICENSE). Third-party libraries keep their own licenses. PySide6 is distributed under Qt's [open-source and commercial licensing options](https://doc.qt.io/qtforpython-6/licenses.html). FFmpeg is installed separately, and its license depends on the build; see [FFmpeg's license information](https://ffmpeg.org/legal.html).
 
-### Video Formats
-MP4, MKV, AVI, MOV, WMV, FLV, WEBM, MTS, M2TS, TS, MPG, MPEG, 3GP, ASF, RM, VOB, MXF, and more
-
-## Conversion Settings
-
-- **Output Format**: WAV (PCM 16-bit or 24-bit)
-- **Sample Rate**: Keep original, 16 kHz, 22.05 kHz, or 44.1 kHz
-- **Channels**: Keep original, mono, or stereo
-- **Bit Depth**: 16-bit or 24-bit
-
-## Repository
-
-GitHub: https://github.com/Tabish-B/AudioBridge
-
-## License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## FFmpeg License
-
-This application uses FFmpeg, which is licensed under the GNU General Public License version 2.0 (or later).
-
-## Author
-
-Tabish Butt
-
-## Contact
-
-- GitHub: [Tabish-B](https://github.com/Tabish-B)
-- Email: tabishbutt700@gmail.com
+Built by [Tabish Butt](https://github.com/Tabish-B). [Repository](https://github.com/Tabish-B/AudioBridge).

@@ -1,49 +1,49 @@
-"""
-Audio Analyzer Module
-
-Provides audio analysis features for ASR and audio quality assessment:
-- Waveform visualization
-- Spectrogram generation
-- Audio statistics
-- Quality metrics
-"""
+"""Small, local checks for deciding what an audio file needs before ASR."""
 
 from pathlib import Path
-from typing import Dict, Optional
+
+import numpy as np
+import soundfile as sf
 
 
 class AudioAnalyzer:
-    def __init__(self):
-        pass
+    def load_preview(self, file_path: Path, max_seconds=120):
+        # Keep previews small, even when someone opens a long recording.
+        with sf.SoundFile(str(file_path)) as source:
+            rate = source.samplerate
+            data = source.read(min(len(source), int(rate * max_seconds)), dtype='float32', always_2d=True)
+        return data.mean(axis=1), rate
 
-    def analyze(self, file_path: Path) -> Dict:
-        """Analyze audio file and return statistics."""
+    def analyze(self, file_path: Path):
+        """Scan in blocks so long recordings don't have to fit in memory."""
         try:
-            import numpy as np
-            import soundfile as sf
-        except ImportError:
-            return {'error': 'Analysis requires numpy and soundfile. Install with: pip install numpy soundfile'}
-
-        try:
-            data, sample_rate = sf.read(str(file_path))
-            
-            duration = len(data) / sample_rate
-            rms = np.sqrt(np.mean(data**2))
-            peak = np.max(np.abs(data))
-            
-            # Calculate SNR estimate
-            signal_power = np.mean(data**2)
-            noise_floor = np.percentile(np.abs(data), 10)
-            snr = 10 * np.log10(signal_power / (noise_floor**2 + 1e-10))
-            
-            return {
-                'duration': duration,
-                'sample_rate': sample_rate,
-                'channels': data.shape[1] if len(data.shape) > 1 else 1,
-                'rms': float(rms),
-                'peak': float(peak),
-                'snr': float(snr),
-                'dynamic_range': float(20 * np.log10(peak / (rms + 1e-10)))
-            }
-        except Exception as e:
-            return {'error': str(e)}
+            with sf.SoundFile(str(file_path)) as source:
+                rate, channels, frames = source.samplerate, source.channels, len(source)
+                if not frames:
+                    return {'error': 'This file has no audio samples.'}
+                power = 0.0
+                peak = 0.0
+                clipped = count = quiet_frames = total_frames = 0
+                # 20 ms RMS windows; quiet is a level threshold, not speech detection.
+                window = max(1, round(rate * 0.02))
+                for block in source.blocks(blocksize=window, dtype='float64', always_2d=True):
+                    if not np.isfinite(block).all():
+                        return {'error': 'This file contains non-finite audio samples.'}
+                    power += float(np.sum(block ** 2))
+                    peak = max(peak, float(np.max(np.abs(block))))
+                    clipped += int(np.count_nonzero(np.abs(block) >= 0.999))
+                    count += block.size
+                    if np.sqrt(np.mean(block ** 2)) < 10 ** (-40 / 20):
+                        quiet_frames += len(block)
+                    total_frames += len(block)
+                rms = float(np.sqrt(power / count))
+                db = lambda value: float(20 * np.log10(max(value, 1e-12)))
+                return {
+                    'duration': frames / rate, 'sample_rate': rate, 'channels': channels,
+                    'rms': rms, 'peak': peak, 'rms_dbfs': db(rms), 'peak_dbfs': db(peak),
+                    'crest_db': db(peak) - db(rms),
+                    'clipping_percent': 100 * clipped / count,
+                    'quiet_percent': 100 * quiet_frames / total_frames,
+                }
+        except Exception as exc:
+            return {'error': str(exc)}
