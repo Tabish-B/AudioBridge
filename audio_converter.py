@@ -1,9 +1,6 @@
-#!/usr/bin/env python3
 """
-Audio Conversion Helper - GUI Application
-
-A simple, user-friendly tool for converting audio files to WAV format.
-Designed for JRF annotators who need convenient access to audio recordings.
+AudioBridge - Modern GUI (Figma Design)
+File queue, waveform preview, settings sidebar
 """
 
 import tkinter as tk
@@ -11,368 +8,415 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 from pathlib import Path
 import threading
 import subprocess
-import platform
 
 from converter import AudioConverter, AudioInspector
 
+# Lazy import for analysis modules
+try:
+    from converter import AudioAnalyzer
+    ANALYSIS_AVAILABLE = True
+except ImportError:
+    ANALYSIS_AVAILABLE = False
 
-class AudioConverterGUI:
-    """Main GUI application for audio conversion."""
 
+class AudioBridgeGUI:
     def __init__(self, root):
-        """Initialize the GUI."""
         self.root = root
-        self.root.title("Audio Conversion Helper")
-        self.root.geometry("800x700")
+        self.root.title("AudioBridge v2.0")
+        self.root.geometry("1200x700")
+        
+        # Dark theme colors matching Figma
+        self.colors = {
+            'bg': '#0d1117',
+            'surface': '#161b22',
+            'border': '#30363d',
+            'text': '#c9d1d9',
+            'text_dim': '#8b949e',
+            'accent': '#58a6ff',
+            'accent_hover': '#1f6feb',
+            'success': '#238636',
+            'card': '#21262d'
+        }
+        
+        self.root.configure(bg=self.colors['bg'])
 
-        # Initialize converter and inspector
         try:
             self.converter = AudioConverter()
             self.inspector = AudioInspector()
+            self.analyzer = AudioAnalyzer() if ANALYSIS_AVAILABLE else None
         except RuntimeError as e:
-            messagebox.showerror(
-                "Error",
-                f"FFmpeg not found: {e}\n\nPlease install FFmpeg and try again."
-            )
+            messagebox.showerror("Error", f"FFmpeg not found: {e}")
             self.root.destroy()
             return
 
-        # State variables
-        self.input_files = []
-        self.input_folder = None
+        self.file_queue = []
         self.output_dir = None
         self.converting = False
+        self.selected_file = None
 
-        # Build GUI
         self._build_ui()
 
     def _build_ui(self):
-        """Build the user interface."""
-        # Main container with padding
-        main_frame = ttk.Frame(self.root, padding="10")
-        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Main container with 3 columns
+        main_container = tk.Frame(self.root, bg=self.colors['bg'])
+        main_container.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
 
-        # Configure grid weights
-        self.root.columnconfigure(0, weight=1)
-        self.root.rowconfigure(0, weight=1)
-        main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(7, weight=1)  # Results area
+        # Left column - File Queue
+        self._build_file_queue(main_container)
 
-        # Title
-        title_label = ttk.Label(
-            main_frame,
-            text="Audio Conversion Helper",
-            font=("Helvetica", 16, "bold")
+        # Center column - Preview
+        self._build_preview_section(main_container)
+
+        # Right column - Settings
+        self._build_settings_panel(main_container)
+
+    def _build_file_queue(self, parent):
+        frame = tk.Frame(parent, bg=self.colors['surface'], padx=15, pady=15)
+        frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+
+        # Header
+        header = tk.Label(
+            frame, 
+            text="Conversion Studio", 
+            font=('Segoe UI', 14, 'bold'),
+            bg=self.colors['surface'],
+            fg=self.colors['text']
         )
-        title_label.grid(row=0, column=0, pady=(0, 5), sticky=tk.W)
+        header.pack(anchor=tk.W, pady=(0, 15))
 
-        # Important notice
-        notice_label = ttk.Label(
-            main_frame,
-            text="Original files are never modified. Converted files are saved separately.",
-            font=("Helvetica", 9),
-            foreground="gray"
+        # Upload button
+        upload_btn = tk.Button(
+            frame,
+            text="+ Upload Audio Files",
+            command=self._upload_files,
+            font=('Segoe UI', 11),
+            bg=self.colors['accent'],
+            fg='white',
+            activebackground=self.colors['accent_hover'],
+            activeforeground='white',
+            relief=tk.FLAT,
+            padx=20,
+            pady=10,
+            cursor='hand2'
         )
-        notice_label.grid(row=1, column=0, pady=(0, 10), sticky=tk.W)
+        upload_btn.pack(fill=tk.X, pady=(0, 15))
 
-        # Input selection section
-        input_frame = ttk.LabelFrame(main_frame, text="Input Files", padding="10")
-        input_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=5)
-        input_frame.columnconfigure(0, weight=1)
+        # File list
+        list_frame = tk.Frame(frame, bg=self.colors['card'])
+        list_frame.pack(fill=tk.BOTH, expand=True)
 
-        ttk.Button(
-            input_frame,
-            text="Select Files",
-            command=self._select_files
-        ).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.file_listbox = tk.Listbox(
+            list_frame,
+            bg=self.colors['bg'],
+            fg=self.colors['text'],
+            font=('Segoe UI', 10),
+            selectbackground=self.colors['accent'],
+            selectforeground='white',
+            borderwidth=0,
+            highlightthickness=0
+        )
+        self.file_listbox.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.file_listbox.bind('<<ListboxSelect>>', self._on_file_select)
 
-        ttk.Button(
-            input_frame,
-            text="Select Folder",
-            command=self._select_folder
-        ).grid(row=0, column=1, sticky=tk.W, padx=5)
+    def _build_preview_section(self, parent):
+        frame = tk.Frame(parent, bg=self.colors['surface'], padx=15, pady=15)
+        frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
 
-        self.input_label = ttk.Label(input_frame, text="No files selected")
-        self.input_label.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(5, 0))
+        # Header
+        header = tk.Label(
+            frame, 
+            text="Preview", 
+            font=('Segoe UI', 14, 'bold'),
+            bg=self.colors['surface'],
+            fg=self.colors['text']
+        )
+        header.pack(anchor=tk.W, pady=(0, 15))
 
-        # Output directory section
-        output_frame = ttk.LabelFrame(main_frame, text="Output Directory", padding="10")
-        output_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=5)
-        output_frame.columnconfigure(0, weight=1)
+        # Waveform area
+        self.waveform_frame = tk.Frame(frame, bg=self.colors['card'], height=250)
+        self.waveform_frame.pack(fill=tk.X, pady=(0, 15))
+        self.waveform_frame.pack_propagate(False)
 
-        ttk.Button(
+        self.waveform_label = tk.Label(
+            self.waveform_frame,
+            text="Select a file to preview",
+            font=('Segoe UI', 10),
+            bg=self.colors['card'],
+            fg=self.colors['text_dim']
+        )
+        self.waveform_label.pack(expand=True)
+
+        # File info
+        self.info_frame = tk.Frame(frame, bg=self.colors['card'], padx=15, pady=15)
+        self.info_frame.pack(fill=tk.X, pady=(0, 15))
+
+        self.info_label = tk.Label(
+            self.info_frame,
+            text="No file selected",
+            font=('Segoe UI', 10),
+            bg=self.colors['card'],
+            fg=self.colors['text_dim'],
+            justify=tk.LEFT
+        )
+        self.info_label.pack(anchor=tk.W)
+
+        # Output folder
+        output_frame = tk.Frame(frame, bg=self.colors['card'], padx=15, pady=15)
+        output_frame.pack(fill=tk.X)
+
+        tk.Label(
+            output_frame,
+            text="Output Folder",
+            font=('Segoe UI', 10, 'bold'),
+            bg=self.colors['card'],
+            fg=self.colors['text']
+        ).pack(anchor=tk.W, pady=(0, 8))
+
+        self.output_label = tk.Label(
+            output_frame,
+            text="Not selected",
+            font=('Segoe UI', 10),
+            bg=self.colors['card'],
+            fg=self.colors['text_dim']
+        )
+        self.output_label.pack(anchor=tk.W, pady=(0, 8))
+
+        tk.Button(
             output_frame,
             text="Browse",
-            command=self._select_output_dir
-        ).grid(row=0, column=0, sticky=tk.W)
+            command=self._select_output_dir,
+            font=('Segoe UI', 9),
+            bg=self.colors['surface'],
+            fg=self.colors['text'],
+            activebackground=self.colors['border'],
+            relief=tk.FLAT,
+            padx=15,
+            pady=5,
+            cursor='hand2'
+        ).pack(anchor=tk.W)
 
-        self.output_label = ttk.Label(output_frame, text="No output directory selected")
-        self.output_label.grid(row=1, column=0, sticky=tk.W, pady=(5, 0))
+    def _build_settings_panel(self, parent):
+        frame = tk.Frame(parent, bg=self.colors['surface'], padx=15, pady=15, width=280)
+        frame.pack(side=tk.LEFT, fill=tk.Y)
+        frame.pack_propagate(False)
 
-        # Conversion settings section
-        settings_frame = ttk.LabelFrame(main_frame, text="Conversion Settings", padding="10")
-        settings_frame.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=5)
+        # Header
+        header = tk.Label(
+            frame, 
+            text="Conversion Settings", 
+            font=('Segoe UI', 14, 'bold'),
+            bg=self.colors['surface'],
+            fg=self.colors['text']
+        )
+        header.pack(anchor=tk.W, pady=(0, 20))
 
-        self.resample_16k_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            settings_frame,
-            text="Resample to 16 kHz",
-            variable=self.resample_16k_var
-        ).grid(row=0, column=0, sticky=tk.W)
-
-        self.mono_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            settings_frame,
-            text="Convert to mono",
-            variable=self.mono_var
-        ).grid(row=0, column=1, sticky=tk.W, padx=20)
+        # Output format
+        self._build_setting_row(frame, "Output Format", ["WAV"], "WAV")
+        
+        # Sample rate
+        self._build_setting_row(frame, "Sample Rate", ["Keep Original", "16000 Hz", "22050 Hz", "44100 Hz"], "Keep Original")
+        
+        # Bit depth
+        self._build_setting_row(frame, "Bit Depth", ["16-bit", "24-bit"], "16-bit")
+        
+        # Channels
+        self._build_setting_row(frame, "Channels", ["Keep Original", "Mono", "Stereo"], "Keep Original")
 
         # Convert button
-        self.convert_button = ttk.Button(
-            main_frame,
-            text="Convert",
-            command=self._start_conversion
+        convert_btn = tk.Button(
+            frame,
+            text="Convert All",
+            command=self._start_conversion,
+            font=('Segoe UI', 11, 'bold'),
+            bg=self.colors['success'],
+            fg='white',
+            activebackground='#2ea043',
+            activeforeground='white',
+            relief=tk.FLAT,
+            padx=20,
+            pady=12,
+            cursor='hand2'
         )
-        self.convert_button.grid(row=5, column=0, pady=10)
+        convert_btn.pack(fill=tk.X, pady=(30, 0))
 
-        # Progress section
-        progress_frame = ttk.LabelFrame(main_frame, text="Progress", padding="10")
-        progress_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=5)
-        progress_frame.columnconfigure(0, weight=1)
+        # Progress
+        self.progress = ttk.Progressbar(frame, mode='determinate')
+        self.progress.pack(fill=tk.X, pady=(15, 5))
 
-        self.progress = ttk.Progressbar(
-            progress_frame,
-            orient=tk.HORIZONTAL,
-            mode='determinate'
+        self.status_label = tk.Label(
+            frame,
+            text="Ready",
+            font=('Segoe UI', 9),
+            bg=self.colors['surface'],
+            fg=self.colors['text_dim']
         )
-        self.progress.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
+        self.status_label.pack(anchor=tk.W)
 
-        self.status_label = ttk.Label(progress_frame, text="Ready")
-        self.status_label.grid(row=1, column=0, sticky=tk.W)
+    def _build_setting_row(self, parent, label, options, default):
+        row = tk.Frame(parent, bg=self.colors['surface'])
+        row.pack(fill=tk.X, pady=(0, 15))
 
-        # Results section
-        results_frame = ttk.LabelFrame(main_frame, text="Conversion Results", padding="10")
-        results_frame.grid(row=7, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
-        results_frame.columnconfigure(0, weight=1)
-        results_frame.rowconfigure(0, weight=1)
+        tk.Label(
+            row,
+            text=label,
+            font=('Segoe UI', 10),
+            bg=self.colors['surface'],
+            fg=self.colors['text']
+        ).pack(anchor=tk.W, pady=(0, 5))
 
-        self.results_text = scrolledtext.ScrolledText(
-            results_frame,
-            height=15,
-            width=80,
-            state='disabled'
-        )
-        self.results_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        setting_var = tk.StringVar(value=default)
+        self.__setattr__(f"{label.lower().replace(' ', '_')}_var", setting_var)
 
-        # Open output folder button
-        self.open_folder_button = ttk.Button(
-            main_frame,
-            text="Open Output Folder",
-            command=self._open_output_folder,
-            state='disabled'
-        )
-        self.open_folder_button.grid(row=8, column=0, pady=5)
+        for opt in options:
+            rb = tk.Radiobutton(
+                row,
+                text=opt,
+                variable=setting_var,
+                value=opt,
+                font=('Segoe UI', 9),
+                bg=self.colors['surface'],
+                fg=self.colors['text'],
+                selectcolor=self.colors['accent'],
+                activebackground=self.colors['surface'],
+                activeforeground=self.colors['text'],
+                cursor='hand2'
+            )
+            rb.pack(anchor=tk.W)
 
-        # Clear button
-        ttk.Button(
-            main_frame,
-            text="Clear",
-            command=self._clear
-        ).grid(row=9, column=0, pady=5)
-
-    def _select_files(self):
-        """Select individual audio files."""
-        files = filedialog.askopenfilenames(
-            title="Select Audio/Video Files",
-            filetypes=[
-                ("All Supported", "*.wav *.mp3 *.m4a *.aac *.flac *.ogg *.opus *.wma *.aiff *.au *.ac3 *.dts *.mp2 *.mpg *.mpeg *.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm *.mts *.m2ts *.ts *.3gp *.asf *.rm *.vob *.mxf *.m4v"),
-                ("Audio Files", "*.wav *.mp3 *.m4a *.aac *.flac *.ogg *.opus *.wma *.aiff *.au *.ac3 *.dts *.mp2"),
-                ("Video Files", "*.mp4 *.mkv *.avi *.mov *.wmv *.flv *.webm *.mts *.m2ts *.ts *.mpg *.mpeg *.3gp *.asf *.rm *.vob *.mxf *.m4v"),
-                ("All Files", "*.*")
-            ]
-        )
-
+    def _upload_files(self):
+        files = filedialog.askopenfilenames(title="Select Audio/Video Files")
         if files:
-            self.input_files = list(files)
-            self.input_folder = None
-            self.input_label.config(text=f"{len(files)} file(s) selected")
+            for file in files:
+                self.file_queue.append(file)
+                self.file_listbox.insert(tk.END, Path(file).name)
 
-    def _select_folder(self):
-        """Select a folder containing audio files."""
-        folder = filedialog.askdirectory(title="Select Folder with Audio Files")
+    def _on_file_select(self, event):
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            self.selected_file = Path(self.file_queue[index])
+            self._update_preview()
 
-        if folder:
-            self.input_folder = Path(folder)
-            self.input_files = []
+    def _update_preview(self):
+        if not self.selected_file:
+            return
 
-            # Find all supported audio/video files
-            for ext in self.inspector.SUPPORTED_AUDIO_EXTS | self.inspector.SUPPORTED_VIDEO_EXTS:
-                self.input_files.extend(self.input_folder.glob(f"*{ext}"))
-                self.input_files.extend(self.input_folder.glob(f"*{ext.upper()}"))
+        # Update info
+        try:
+            metadata = self.inspector.inspect(self.selected_file)
+            info = f"File: {self.selected_file.name}\n"
+            info += f"Duration: {metadata.get('duration', 'N/A'):.2f}s\n"
+            info += f"Sample Rate: {metadata.get('sample_rate', 'N/A')} Hz\n"
+            info += f"Channels: {metadata.get('channels', 'N/A')}\n"
+            info += f"Codec: {metadata.get('codec', 'N/A')}"
+            self.info_label.config(text=info, fg=self.colors['text'])
+        except:
+            self.info_label.config(text="Could not read file info", fg=self.colors['text_dim'])
 
-            self.input_files = [str(f) for f in self.input_files]
-            self.input_label.config(text=f"{len(self.input_files)} file(s) in folder")
+        # Show waveform
+        self._show_waveform_in_frame()
+
+    def _show_waveform_in_frame(self):
+        try:
+            import matplotlib.pyplot as plt
+            import numpy as np
+            import soundfile as sf
+            from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+        except ImportError:
+            self.waveform_label.config(text="Waveform requires matplotlib\nInstall: pip install matplotlib numpy")
+            return
+
+        try:
+            data, sr = sf.read(str(self.selected_file))
+            
+            # Clear previous
+            for widget in self.waveform_frame.winfo_children():
+                widget.destroy()
+
+            # Create matplotlib figure
+            fig, ax = plt.subplots(figsize=(5, 2.5), dpi=100)
+            fig.patch.set_facecolor(self.colors['card'])
+            ax.set_facecolor(self.colors['card'])
+            
+            # Plot waveform
+            ax.plot(np.arange(len(data)) / sr, data, color=self.colors['accent'], linewidth=0.5)
+            ax.set_xlabel('Time (s)', color=self.colors['text_dim'], fontsize=8)
+            ax.set_ylabel('Amplitude', color=self.colors['text_dim'], fontsize=8)
+            ax.tick_params(colors=self.colors['text_dim'], labelsize=8)
+            ax.spines['bottom'].set_color(self.colors['border'])
+            ax.spines['top'].set_color(self.colors['border'])
+            ax.spines['left'].set_color(self.colors['border'])
+            ax.spines['right'].set_color(self.colors['border'])
+            ax.set_title(self.selected_file.name, color=self.colors['text'], fontsize=10, fontweight='bold')
+            
+            plt.tight_layout()
+
+            # Embed in tkinter
+            canvas = FigureCanvasTkAgg(fig, master=self.waveform_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+        except Exception as e:
+            self.waveform_label.config(text=f"Error: {str(e)}", fg=self.colors['text_dim'])
 
     def _select_output_dir(self):
-        """Select output directory."""
         directory = filedialog.askdirectory(title="Select Output Directory")
-
         if directory:
             self.output_dir = Path(directory)
-            self.output_label.config(text=str(self.output_dir))
-            self.open_folder_button.config(state='normal')
+            self.output_label.config(text=str(self.output_dir), fg=self.colors['text'])
 
     def _start_conversion(self):
-        """Start the conversion process in a separate thread."""
-        if not self.input_files:
-            messagebox.showwarning("Warning", "Please select input files first")
+        if not self.file_queue:
+            messagebox.showwarning("Warning", "Please upload files first")
             return
 
         if not self.output_dir:
-            messagebox.showwarning("Warning", "Please select output directory first")
-            return
-
-        if self.converting:
+            messagebox.showwarning("Warning", "Please select output folder")
             return
 
         self.converting = True
-        self.convert_button.config(state='disabled')
-        self.results_text.config(state='normal')
-        self.results_text.delete(1.0, tk.END)
-        self.results_text.config(state='disabled')
-
-        # Start conversion in background thread
         thread = threading.Thread(target=self._run_conversion)
         thread.daemon = True
         thread.start()
 
     def _run_conversion(self):
-        """Run the conversion process."""
-        try:
-            sample_rate = 16000 if self.resample_16k_var.get() else None
-            mono = self.mono_var.get()
+        # Parse settings
+        sample_rate_map = {
+            "Keep Original": None,
+            "16000 Hz": 16000,
+            "22050 Hz": 22050,
+            "44100 Hz": 44100
+        }
+        bit_depth_map = {"16-bit": 16, "24-bit": 24}
+        channels_map = {
+            "Keep Original": False,
+            "Mono": True,
+            "Stereo": False
+        }
 
-            def progress_callback(current, total, file_path, result):
-                # Update GUI in main thread
-                self.root.after(0, self._update_progress, current, total, file_path, result)
+        sample_rate = sample_rate_map.get(self.sample_rate_var.get())
+        bit_depth = bit_depth_map.get(self.bit_depth_var.get())
+        mono = channels_map.get(self.channels_var.get())
 
-            # Run batch conversion
-            batch_result = self.converter.batch_convert(
-                self.input_files,
-                self.output_dir,
-                sample_rate=sample_rate,
-                mono=mono,
-                progress_callback=progress_callback
-            )
+        def progress_callback(current, total, file_path, result):
+            self.root.after(0, self._update_progress, current, total, file_path, result)
 
-            # Final update
-            self.root.after(0, self._conversion_complete, batch_result)
-
-        except Exception as e:
-            # Handle any unexpected errors
-            self.root.after(0, self._conversion_error, str(e))
+        batch_result = self.converter.batch_convert(self.file_queue, self.output_dir, sample_rate=sample_rate, mono=mono, bit_depth=bit_depth, progress_callback=progress_callback)
+        self.root.after(0, self._conversion_complete, batch_result)
 
     def _update_progress(self, current, total, file_path, result):
-        """Update progress display."""
-        progress = (current / total) * 100
-        self.progress['value'] = progress
-        self.status_label.config(text=f"Processing {current}/{total}: {Path(file_path).name}")
-
-        # Add result to display
-        self.results_text.config(state='normal')
-
-        if result['success']:
-            msg = f"✓ {Path(file_path).name}"
-            if result.get('warning'):
-                msg += f" (Warning: {result['warning']})"
-            self.results_text.insert(tk.END, msg + "\n", 'success')
-        else:
-            self.results_text.insert(tk.END, f"✗ {Path(file_path).name}: {result.get('error', 'Unknown error')}\n", 'error')
-
-        self.results_text.see(tk.END)
-        self.results_text.config(state='disabled')
+        self.progress['value'] = (current / total) * 100
+        self.status_label.config(text=f"Converting {current}/{total}")
 
     def _conversion_complete(self, batch_result):
-        """Handle conversion completion."""
         self.converting = False
-        self.convert_button.config(state='normal')
-        self.status_label.config(
-            text=f"Complete: {batch_result['successful']} successful, {batch_result['failed']} failed"
-        )
-
-        # Add summary
-        self.results_text.config(state='normal')
-        self.results_text.insert(tk.END, "\n" + "="*60 + "\n")
-        self.results_text.insert(tk.END, f"Total: {batch_result['total']}\n")
-        self.results_text.insert(tk.END, f"Successful: {batch_result['successful']}\n")
-        self.results_text.insert(tk.END, f"Failed: {batch_result['failed']}\n")
-        self.results_text.see(tk.END)
-        self.results_text.config(state='disabled')
-
-        # Show message box if there were failures
-        if batch_result['failed'] > 0:
-            messagebox.showwarning(
-                "Conversion Complete",
-                f"Conversion finished with {batch_result['failed']} failure(s). Check the results for details."
-            )
-        else:
-            messagebox.showinfo(
-                "Conversion Complete",
-                f"Successfully converted {batch_result['successful']} file(s)."
-            )
-
-    def _conversion_error(self, error_message):
-        """Handle unexpected conversion errors."""
-        self.converting = False
-        self.convert_button.config(state='normal')
-        self.status_label.config(text="Error occurred")
-
-        # Display error in results
-        self.results_text.config(state='normal')
-        self.results_text.insert(tk.END, f"\n❌ UNEXPECTED ERROR:\n{error_message}\n", 'error')
-        self.results_text.see(tk.END)
-        self.results_text.config(state='disabled')
-
-        # Show error dialog
-        messagebox.showerror(
-            "Conversion Error",
-            f"An unexpected error occurred:\n\n{error_message}\n\nPlease check the file format and try again."
-        )
-
-    def _open_output_folder(self):
-        """Open the output folder in the system file manager."""
-        if not self.output_dir:
-            return
-
-        try:
-            if platform.system() == "Windows":
-                subprocess.run(["explorer", str(self.output_dir)])
-            elif platform.system() == "Darwin":  # macOS
-                subprocess.run(["open", str(self.output_dir)])
-            else:  # Linux
-                subprocess.run(["xdg-open", str(self.output_dir)])
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to open folder: {e}")
-
-    def _clear(self):
-        """Clear all selections and results."""
-        self.input_files = []
-        self.input_folder = None
-        self.output_dir = None
-        self.input_label.config(text="No files selected")
-        self.output_label.config(text="No output directory selected")
-        self.open_folder_button.config(state='disabled')
-        self.progress['value'] = 0
-        self.status_label.config(text="Ready")
-        self.results_text.config(state='normal')
-        self.results_text.delete(1.0, tk.END)
-        self.results_text.config(state='disabled')
+        self.status_label.config(text=f"Complete: {batch_result['successful']} successful, {batch_result['failed']} failed")
+        messagebox.showinfo("Complete", f"Converted {batch_result['successful']} files successfully")
 
 
 def main():
-    """Main entry point."""
     root = tk.Tk()
-    app = AudioConverterGUI(root)
+    app = AudioBridgeGUI(root)
     root.mainloop()
 
 

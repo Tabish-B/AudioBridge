@@ -1,16 +1,19 @@
 # AudioBridge
 
-A professional cross-platform audio conversion tool designed for researchers, annotators, and audio professionals. Convert any audio or video file to WAV format with customizable settings for sample rate, channels, and bit depth.
+A professional cross-platform audio conversion and analysis tool designed for researchers, audio engineers, and ML practitioners. Convert any audio or video file to WAV format with customizable settings, visualize waveforms, and analyze audio quality metrics.
 
 ## Features
 
+- **Modern GUI**: Figma-inspired dark theme with 3-column layout
+- **File Queue**: Upload and manage multiple files for batch conversion
+- **Waveform Preview**: Embedded waveform visualization for quick quality inspection
+- **Audio Analysis**: Built-in quality metrics (SNR, dynamic range, RMS, peak level)
 - **Cross-Platform Support**: Works on Windows, macOS, and Linux
 - **Wide Format Support**: Converts MP3, M4A, AAC, FLAC, OGG, OPUS, MP4, MKV, AVI, MOV, MTS, and more
 - **Non-Destructive**: Original files are never modified
 - **Batch Processing**: Convert multiple files at once
-- **Customizable Settings**: Resample to 16 kHz, convert to mono, choose bit depth
+- **Customizable Settings**: Sample rate, channels, bit depth
 - **Verification**: Ensures conversions complete successfully
-- **Professional GUI**: Clean, intuitive interface for ease of use
 
 ## Installation
 
@@ -18,6 +21,7 @@ A professional cross-platform audio conversion tool designed for researchers, an
 
 - Python 3.8 or higher
 - FFmpeg (for audio conversion)
+- numpy, matplotlib, scipy (for audio analysis)
 
 #### Installing FFmpeg
 
@@ -49,6 +53,25 @@ pip install -r requirements.txt
 python audio_converter.py
 ```
 
+## Audio Analysis Features
+
+AudioBridge provides the following analysis capabilities useful for ASR and audio repair work:
+
+- **Waveform Visualization**: Visualize audio waveform for quality inspection
+- **Quality Metrics**:
+  - SNR (Signal-to-Noise Ratio) estimation
+  - Dynamic range measurement
+  - RMS (Root Mean Square) level
+  - Peak level detection
+  - Duration and sample rate information
+  - Channel count
+
+These metrics are essential for:
+- Pre-processing decisions for ASR models
+- Audio quality assessment before repair
+- Comparing audio source quality
+- Validating audio after restoration work
+
 ## Project Structure
 
 ```
@@ -59,6 +82,7 @@ AudioBridge/
 │   ├── core.py                  # Conversion logic
 │   ├── inspector.py             # Audio inspection
 │   ├── verifier.py              # Conversion verification
+│   ├── analyzer.py              # Audio analysis module
 │   └── ffmpeg_utils.py          # FFmpeg detection
 ├── requirements.txt              # Python dependencies
 ├── README.md                    # This file
@@ -76,9 +100,9 @@ MP4, MKV, AVI, MOV, WMV, FLV, WEBM, MTS, M2TS, TS, MPG, MPEG, 3GP, ASF, RM, VOB,
 ## Conversion Settings
 
 - **Output Format**: WAV (PCM 16-bit or 24-bit)
-- **Sample Rate**: Preserve source or convert to 16 kHz
-- **Channels**: Preserve source or convert to mono
-- **Default Behavior**: Preserves original quality unless explicitly changed
+- **Sample Rate**: Keep original, 16 kHz, 22.05 kHz, or 44.1 kHz
+- **Channels**: Keep original, mono, or stereo
+- **Bit Depth**: 16-bit or 24-bit
 
 ## Repository
 
