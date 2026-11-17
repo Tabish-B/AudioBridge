@@ -21,6 +21,7 @@ SIZES = {
 BACKGROUND = (184, 245, 154, 255)
 WAVEFORM = (23, 50, 31, 255)
 SUPERSAMPLE = 4
+ARTWORK_SCALE = 0.84
 
 
 def render_icon(size: int) -> Image.Image:
@@ -32,9 +33,14 @@ def render_icon(size: int) -> Image.Image:
     draw = ImageDraw.Draw(image)
 
     def box(x0: float, y0: float, x1: float, y1: float) -> tuple[int, int, int, int]:
-        return tuple(round(value * unit) for value in (x0, y0, x1, y1))
+        def place(value: float) -> int:
+            centered = 64 + (value - 64) * ARTWORK_SCALE
+            return round(centered * unit)
 
-    draw.rounded_rectangle(box(0, 0, 128, 128), radius=round(32 * unit), fill=BACKGROUND)
+        return tuple(place(value) for value in (x0, y0, x1, y1))
+
+    corner_radius = round(32 * ARTWORK_SCALE * unit)
+    draw.rounded_rectangle(box(0, 0, 128, 128), radius=corner_radius, fill=BACKGROUND)
     for x, top, bottom in (
         (32, 48, 80),
         (48, 32, 96),
@@ -44,7 +50,7 @@ def render_icon(size: int) -> Image.Image:
     ):
         draw.rounded_rectangle(
             box(x - 4, top, x + 4, bottom),
-            radius=round(4 * unit),
+            radius=round(4 * ARTWORK_SCALE * unit),
             fill=WAVEFORM,
         )
 
