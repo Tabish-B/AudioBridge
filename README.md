@@ -80,6 +80,10 @@ MP4, MKV, AVI, MOV, WMV, FLV, WEBM, MTS, M2TS, TS, MPG, MPEG, 3GP, ASF, RM, VOB,
 - **Channels**: Preserve source or convert to mono
 - **Default Behavior**: Preserves original quality unless explicitly changed
 
+## Repository
+
+GitHub: https://github.com/Tabish-B/AudioBridge
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
