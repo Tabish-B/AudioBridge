@@ -38,6 +38,8 @@ Lossless exports preserve the selected sample boundaries before any requested re
 
 Choose **Spectrogram**, **Mel spectrogram**, or **MFCC**. Open **Spectral settings**, then **Apply analysis settings**. **Export view PNG** saves the full-recording image with time and frequency/coefficient axes; the PNG metadata includes source name, duration, and analysis settings. The PNG contains the rendered color image, not a numeric feature matrix.
 
+Stereo waveform previews show left and right channels in separate aligned lanes with per-channel peak and RMS levels. The spectral views use a mono mix. A low left/right correlation raises a polarity and mono-compatibility review cue; it does not alter the recording.
+
 | Control | Effect |
 | --- | --- |
 | FFT size | 256–8192 samples; changes frequency/time resolution |

@@ -846,9 +846,28 @@ class AudioBridgeGUI(QMainWindow):
         self._set_status("Recording ready")
         self._set_zoom()
         self.editor.spectrum_legend.setText(result.get("spectral_legend", "Spectral power"))
-        self.editor.preview_note.setText(
-            f"Whole recording: {clock(result['seconds'] * 1000)} · Display: mono / {result['rate']:,} Hz"
-        )
+        diagnostics = result["channel_diagnostics"]
+        if diagnostics["count"] == 2:
+            left, right = diagnostics["rms_dbfs"]
+            peak_left, peak_right = diagnostics["peak_dbfs"]
+            corr = diagnostics["correlation"]
+            warning = (
+                " · Low correlation: check polarity/mono compatibility"
+                if diagnostics["mono_cancellation_risk"]
+                else ""
+            )
+            self.editor.metrics.setText(
+                f"L RMS {left:.1f} dBFS · Peak {peak_left:.1f} dBFS    |    "
+                f"R RMS {right:.1f} dBFS · Peak {peak_right:.1f} dBFS · L/R correlation {corr:.2f}{warning}"
+            )
+            self.editor.preview_note.setText(
+                f"Whole recording: {clock(result['seconds'] * 1000)} · Waveform: separate L/R · Spectral views: mono mix / {result['rate']:,} Hz"
+            )
+        else:
+            self.editor.metrics.setText("Mono waveform · Spectral views use the same signal.")
+            self.editor.preview_note.setText(
+                f"Whole recording: {clock(result['seconds'] * 1000)} · Display: mono / {result['rate']:,} Hz"
+            )
 
     def _set_zoom(self, index=None):
         if self.editor.zoom.currentIndex() != 6:

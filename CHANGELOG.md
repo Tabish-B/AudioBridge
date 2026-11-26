@@ -5,6 +5,7 @@
 - Combined selected-file and queue signal checks in one workflow with a shared CSV report.
 - Removed the basic interval annotation page; use ELAN for linguistic annotation.
 - Added verified output codec, sample rate, and channel details after conversion.
+- Added separate stereo waveform lanes, per-channel levels, and a mono-cancellation review cue.
 
 ## Unreleased
 

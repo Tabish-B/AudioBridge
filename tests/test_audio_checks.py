@@ -40,6 +40,17 @@ class AudioChecksTests(unittest.TestCase):
         self.assertAlmostEqual(report["rms"], 0.5)
         self.assertEqual(report["quiet_percent"], 0)
 
+    def test_stereo_preview_keeps_channel_waveforms_and_detects_cancellation_risk(self):
+        path = self.base / "opposite.wav"
+        left = 0.5 * np.sin(2 * np.pi * 440 * np.arange(8000) / 8000)
+        sf.write(path, np.column_stack([left, -left]), 8000, subtype="FLOAT")
+        preview = build_preview(path)
+        self.assertEqual(preview["low"].shape[0], 2)
+        self.assertEqual(preview["high"].shape[0], 2)
+        diagnostics = preview["channel_diagnostics"]
+        self.assertAlmostEqual(diagnostics["correlation"], -1, places=3)
+        self.assertTrue(diagnostics["mono_cancellation_risk"])
+
     def test_empty_and_nonfinite_audio(self):
         for name, data in [("empty", np.array([])), ("invalid", np.array([float("nan")]))]:
             path = self.base / (name + ".wav")

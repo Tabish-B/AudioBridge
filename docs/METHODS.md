@@ -4,7 +4,7 @@
 
 ## Source and display
 
-Source measurements read every channel at its native rate. Plotting decodes a mono downmix with FFmpeg at the source rate capped at 48 kHz. This caps display Nyquist at 24 kHz and can cancel opposite-phase stereo content. It does not change the source or choose export settings.
+Source measurements read every channel at its native rate. For mono and stereo recordings, waveform preview preserves the original channel lanes and decodes at up to 48 kHz. Spectrogram, Mel, and MFCC previews use the arithmetic mono mix; opposite-phase stereo content can cancel there. A normalized left/right correlation below −0.5 raises a review warning, not a claim of faulty polarity. Files with more than two channels are downmixed by FFmpeg for preview. None of these display conversions changes the source or chooses export settings.
 
 Whole-file envelopes contain at most approximately 12,000 min/max bins. Waveform zoom windows of up to 30 seconds are decoded separately into at most 12,000 local bins. This is visual inspection, not a sample-grid editor. Region export operates on source samples, independent of display downsampling.
 

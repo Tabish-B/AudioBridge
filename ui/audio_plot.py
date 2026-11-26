@@ -91,39 +91,59 @@ class AudioPlot(QWidget):
                 painter.drawText(3, int(area.bottom() - fraction * (area.height() - 12)), text)
         else:
             low, high = self.preview["low"], self.preview["high"]
+            channel_count = low.shape[0] if low.ndim == 2 else 1
+            if low.ndim == 1:
+                low, high = low[None, :], high[None, :]
             wave_start, wave_duration = 0, duration
             if (
-                self.detail
+                channel_count == 1
+                and self.detail
                 and self.detail["start"] <= start + 0.0001
                 and self.detail["start"] + self.detail["seconds"] >= start + span - 0.001
             ):
-                low, high = self.detail["low"], self.detail["high"]
+                low, high = self.detail["low"][None, :], self.detail["high"][None, :]
                 wave_start, wave_duration = self.detail["start"], self.detail["seconds"]
             first = max(0, int((start - wave_start) / wave_duration * len(low)))
             last = max(
                 first + 1, int(np.ceil((start + span - wave_start) / wave_duration * len(low)))
             )
-            low, high = low[first:last], high[first:last]
-            # Bound painting work even when the entire recording is visible.
-            step = max(1, int(np.ceil(len(low) / max(1, area.width()))))
-            padding = (-len(low)) % step
-            low = np.pad(low, (0, padding), mode="edge").reshape(-1, step).min(axis=1)
-            high = np.pad(high, (0, padding), mode="edge").reshape(-1, step).max(axis=1)
-            middle, scale = area.center().y(), area.height() / 2
-            painter.setPen(QPen(QColor("#b8f59a"), 1))
-            lines = [
-                QLineF(
-                    area.left() + i * area.width() / max(1, len(low) - 1),
-                    middle - float(lo) * scale,
-                    area.left() + i * area.width() / max(1, len(low) - 1),
-                    middle - float(hi) * scale,
+            low, high = low[:, first:last], high[:, first:last]
+            for channel in range(channel_count):
+                channel_low, channel_high = low[channel], high[channel]
+                step = max(1, int(np.ceil(len(channel_low) / max(1, area.width()))))
+                padding = (-len(channel_low)) % step
+                channel_low = (
+                    np.pad(channel_low, (0, padding), mode="edge").reshape(-1, step).min(axis=1)
                 )
-                for i, (lo, hi) in enumerate(zip(low, high))
-            ]
-            if np.array_equal(low, high):
-                painter.drawPolyline(QPolygonF([QPointF(line.x1(), line.y1()) for line in lines]))
-            else:
-                painter.drawLines(lines)
+                channel_high = (
+                    np.pad(channel_high, (0, padding), mode="edge").reshape(-1, step).max(axis=1)
+                )
+                lane_height = area.height() / channel_count
+                lane = QRectF(
+                    area.left(), area.top() + channel * lane_height, area.width(), lane_height
+                )
+                middle, scale = lane.center().y(), lane.height() / 2
+                painter.setPen(QPen(QColor("#b8f59a" if channel == 0 else "#79b5c5"), 1))
+                lines = [
+                    QLineF(
+                        area.left() + i * area.width() / max(1, len(channel_low) - 1),
+                        middle - float(lo) * scale,
+                        area.left() + i * area.width() / max(1, len(channel_low) - 1),
+                        middle - float(hi) * scale,
+                    )
+                    for i, (lo, hi) in enumerate(zip(channel_low, channel_high))
+                ]
+                if np.array_equal(channel_low, channel_high):
+                    painter.drawPolyline(
+                        QPolygonF([QPointF(line.x1(), line.y1()) for line in lines])
+                    )
+                else:
+                    painter.drawLines(lines)
+                if channel_count == 2:
+                    painter.setPen(QPen(QColor("#34473b"), 1, Qt.PenStyle.DashLine))
+                    painter.drawLine(
+                        QLineF(lane.left(), lane.bottom(), lane.right(), lane.bottom())
+                    )
         if self.selection:
             selected_start, selected_end = self.selection
             left = area.left() + (max(start, selected_start) - start) / span * area.width()

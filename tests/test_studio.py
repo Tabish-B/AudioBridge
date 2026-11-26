@@ -213,6 +213,18 @@ class StudioTests(unittest.TestCase):
         self.assertNotIn("error", w.audit_results[0])
         self.assertIn("flags", w.audit_results[0])
 
+    def test_stereo_waveform_preview_renders_both_channels(self):
+        left = 0.4 * np.sin(2 * np.pi * 440 * np.arange(16000) / 16000)
+        stereo = self.base / "stereo.wav"
+        sf.write(stereo, np.column_stack([left, -left]), 16000, subtype="FLOAT")
+        self.window.add_files([stereo])
+        self.window.table.setCurrentRow(1)
+        wait_for(lambda: self.window.editor.plot.preview is not None)
+        preview = self.window.editor.plot.preview
+        self.assertEqual(preview["low"].shape[0], 2)
+        self.assertTrue(preview["channel_diagnostics"]["mono_cancellation_risk"])
+        self.assertFalse(self.window.editor.plot.grab().toImage().isNull())
+
     def test_drag_selection_timestamp_editing_and_zoom(self):
         self.load()
         w = self.window
