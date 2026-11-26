@@ -21,8 +21,6 @@ from .widgets import button, label
 
 
 class EditorPanel(QFrame):
-    analyze_requested = Signal()
-    report_requested = Signal()
     spectral_export_requested = Signal()
     zoom_requested = Signal(float)
     play_requested = Signal()
@@ -46,16 +44,7 @@ class EditorPanel(QFrame):
         self.file_properties = label("", "muted")
         self.file_properties.setWordWrap(True)
         box.addWidget(self.file_properties)
-        actions = QHBoxLayout()
-        self.analyze_button = button("Analyze file", self.analyze_requested.emit)
-        self.analyze_button.setEnabled(False)
-        self.export_button = button("Export JSON", self.report_requested.emit, "quiet")
-        self.export_button.setEnabled(False)
-        actions.addWidget(self.analyze_button)
-        actions.addWidget(self.export_button)
-        actions.addStretch()
         self.open_editor = button("Advanced editor →", self.open_editor_requested.emit, "quiet")
-        self.preview_header.addLayout(actions)
         box.addWidget(self.open_editor)
         self.view_toolbar = QBoxLayout(QBoxLayout.Direction.LeftToRight)
         self.view = QComboBox()

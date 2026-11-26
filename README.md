@@ -16,15 +16,9 @@ Built with Python, Qt, NumPy, SciPy, and FFmpeg.
 | **Audio editor** | Inspect waveforms, spectrograms, Mel spectrograms, and MFCCs. Configure FFT, hop, window, frequency, and dB ranges; export full-recording spectral images. |
 | **Region editing** | Zoom, drag a selection, enter timestamps, listen to the selection, export a clip, or split at the cursor. |
 | **Conversion studio** | Batch-export WAV, FLAC, MP3, AIFF, or a supported original container. |
-| **Dataset tools** | Audit signal levels and create time-aligned, tiered annotations with JSON or CSV export. |
+| **Signal checks** | Review levels and quiet sections for one recording or scan the full queue; export a CSV report. |
 
 Source recordings stay intact. Processing runs locally; edits write new files.
-
-## Time-aligned annotations
-
-Create intervals from waveform selections, organize them into tiers, edit and replay them, then export an AudioBridge JSON file or CSV.
-
-![AudioBridge annotation tiers](docs/annotations.png)
 
 ## Run locally
 

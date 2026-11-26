@@ -55,22 +55,6 @@ Parameter changes are applied together in a background worker. An older result c
 
 ## Measurements and dataset tools
 
-**Analyze file** measures the full source using SoundFile: duration, rate, channels, peak/RMS in dBFS, crest factor, near-full-scale sample percentage, and quiet-window percentage. Export its JSON report from the preview.
+**Signal checks** measures duration, rate, channels, peak/RMS in dBFS, crest factor, near-full-scale samples, and quiet-window percentage. Choose the selected recording or full queue; export the same results as CSV. Flags use explicit screening thresholds and are not speech detection or an ASR quality score.
 
-**Dataset audit** scans the queue and exports CSV. Fixed flags identify near-full-scale samples above 0.01%, RMS below −35 dBFS, or quiet windows above 75%. They are inspection cues, not speech detection or an ASR quality score.
-
-**Segment annotations** gives you a waveform-based interval workflow. Choose a queued recording, drag a region or enter exact times, add the interval to a named tier, then edit or play segments from the list. The tier timeline shows intervals across the recording; click a segment there or double-click its list row to jump back to it. Tiers are independent and may overlap. Export to AudioBridge's versioned JSON format or a flat CSV; annotations are session-local until exported. The JSON structure is described in [Annotation JSON](ANNOTATION_SCHEMA.md). It is an AudioBridge format and is not an ELAN `.eaf` document.
-
-## Shortcuts
-
-| Action | Shortcut |
-| --- | --- |
-| Add files / folder | Ctrl/Command + O / Shift + O |
-| Play / pause | Space |
-| Zoom | Ctrl/Command + mouse wheel |
-| Mark selection start / end | I / O |
-| Clear selection | Escape |
-| Remove queued file | Delete / Backspace |
-| Offline help | F1 or Help & shortcuts |
-
-Single-key shortcuts pause while typing in text fields. They remain available while dropdowns and time controls have focus. File and help shortcuts also remain available while entering text.
+After conversion, the footer lists the verified output codec, sample rate, and channel count for each successful file.

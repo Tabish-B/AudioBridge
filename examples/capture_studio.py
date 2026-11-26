@@ -26,7 +26,6 @@ def main():
         window.resize(1512, 1080)
         window.show()
         window.add_files([source])
-        window._analyze()
         state, attempts = 0, 0
         destination = ROOT / "docs"
         destination.mkdir(exist_ok=True)
@@ -42,24 +41,12 @@ def main():
             ready = (
                 plot.preview is not None
                 and not plot.spectral_loading
-                and window.report is not None
                 and window.editor.play_button.isEnabled()
             )
             if ready:
                 if state == 0:
                     save("audiobridge.png")
                     window._set_page(2)
-                    window.editor.region_controls.start.setValue(2.5)
-                    window.editor.region_controls.end.setValue(6.2)
-                    window._typed_selection(2.5, 6.2)
-                    window.annotation_label.setText("Generated speech sample")
-                    window._add_annotation()
-                    state = 1
-                elif state == 1:
-                    save("annotations.png")
-                    window._set_page(3)
-                    window.editor.region_controls.start.setValue(2.5)
-                    window.editor.region_controls.end.setValue(6.2)
                     state = 2
                 elif state == 2:
                     save("editor.png")

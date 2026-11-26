@@ -130,6 +130,7 @@ class AudioConverter:
             "output_path": output_path,
             "error": None,
             "verification": verification,
+            "output_metadata": metadata,
             "warning": "; ".join(warnings) if warnings else None,
         }
 

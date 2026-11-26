@@ -21,7 +21,6 @@ from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from converter.annotations import annotation_document
 from converter.preview import build_preview
 from ui.studio import AudioBridgeGUI
 
@@ -101,11 +100,9 @@ class StudioTests(unittest.TestCase):
             self.window.add_files([self.path])
             for _ in range(10):
                 self.window._on_select()
-            QTest.mouseClick(self.window.editor.analyze_button, Qt.MouseButton.LeftButton)
+            QTest.mouseClick(self.window.audit_button, Qt.MouseButton.LeftButton)
             wait_for(
-                lambda: (
-                    self.window.report is not None and self.window.editor.plot.preview is not None
-                )
+                lambda: not self.window.audit_busy and self.window.editor.plot.preview is not None
             )
         timer.stop()
         self.assertEqual(calls, [self.path.resolve()])
@@ -137,6 +134,7 @@ class StudioTests(unittest.TestCase):
             info = sf.info(self.window.output_dir / name)
             self.assertEqual((info.samplerate, info.channels, info.subtype), (16000, 1, "PCM_16"))
         self.assertEqual(self.window.table.status(0), "Exported")
+        self.assertIn("Verified output", self.window.output_summary.text())
 
     def test_remove_and_clear_stop_playback(self):
         self.load()
@@ -147,7 +145,6 @@ class StudioTests(unittest.TestCase):
         self.window.add_files([self.path])
         self.window._clear_files()
         self.assertIsNone(self.window.selected_file)
-        self.assertIsNone(self.window.report)
 
     def test_zoom_scroll_seek_and_spectrogram(self):
         self.load()
@@ -173,8 +170,8 @@ class StudioTests(unittest.TestCase):
 
     def test_small_windows_reflow_without_control_overlap(self):
         self.load()
-        self.window._analyze()
-        wait_for(lambda: self.window.report is not None)
+        self.window._audit()
+        wait_for(lambda: not self.window.audit_busy)
         self.window.editor.view.setCurrentText("Spectrogram")
         from PySide6.QtWidgets import QBoxLayout
 
@@ -207,24 +204,14 @@ class StudioTests(unittest.TestCase):
             self.assertGreaterEqual(self.window.editor.plot.height(), 130)
             self.assertEqual(self.window.sidebar.isHidden(), width < 950)
 
-    def test_research_audit_and_segment_annotations(self):
+    def test_signal_checks_selected_file_and_queue(self):
         self.load()
         w = self.window
         w._audit()
         wait_for(lambda: not w.audit_busy)
         self.assertEqual(len(w.audit_results), 1)
         self.assertNotIn("error", w.audit_results[0])
-        w._set_page(2)
-        w.editor.region_controls.set_region(0.2, 1.2)
-        w.annotation_label.setText("background noise")
-        w.annotation_tier.setCurrentText("Event")
-        w._add_annotation()
-        self.assertEqual(w.annotations[0]["start_seconds"], 0.2)
-        self.assertEqual(w.annotations[0]["end_seconds"], 1.2)
-        document = annotation_document(w.annotations, w.annotation_tiers, "4.0.0")
-        self.assertEqual(document["tiers"][-1]["name"], "Event")
-        self.assertEqual(document["annotations"][0]["text"], "background noise")
-        self.assertEqual(document["media"][0]["file_name"], self.path.name)
+        self.assertIn("flags", w.audit_results[0])
 
     def test_drag_selection_timestamp_editing_and_zoom(self):
         self.load()
@@ -318,12 +305,12 @@ class StudioTests(unittest.TestCase):
     def test_advanced_editor_reflows_with_expanded_controls(self):
         self.load()
         w = self.window
-        w._set_page(3)
+        w._set_page(2)
         w.editor.spectral_controls.body.show()
         for width, height in [(420, 600), (640, 600), (1024, 768), (1400, 950)]:
             w.resize(width, height)
             QTest.qWait(100)
-            self.assertEqual(w.pages.widget(3).horizontalScrollBar().maximum(), 0)
+            self.assertEqual(w.pages.widget(2).horizontalScrollBar().maximum(), 0)
             controls = [
                 w.editor.plot,
                 w.editor.seek_slider,

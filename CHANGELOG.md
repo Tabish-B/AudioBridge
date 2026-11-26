@@ -1,11 +1,16 @@
 # Changelog
 
+## 4.1.0 — 2026-11-26
+
+- Combined selected-file and queue signal checks in one workflow with a shared CSV report.
+- Removed the basic interval annotation page; use ELAN for linguistic annotation.
+- Added verified output codec, sample rate, and channel details after conversion.
+
 ## Unreleased
 
 - Made PCM bit-depth state visible in the output summary and clarified when a selected codec doesn't use PCM depth.
 - Added full-recording PNG export for spectrogram, Mel, and MFCC views, with time/value axes and analysis metadata.
 - Kept playback and file shortcuts available when dropdowns or time controls have focus; text entry keeps its normal key behavior.
-- Reworked annotations around waveform intervals and named tiers, with segment editing/playback and a versioned AudioBridge JSON export.
 - Replaced the private macOS system-font alias with explicit UI and Indic fallback fonts.
 - Regenerated app icons at native sizes to remove the soft color fringe around their edges.
 - Marked Retina icon scale factors so macOS can select the correct high-resolution Dock bitmap.

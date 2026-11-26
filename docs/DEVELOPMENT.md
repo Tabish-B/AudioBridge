@@ -16,19 +16,17 @@ Qt playback tests are muted and need an available media backend. macOS uses the 
 | Module | Responsibility |
 | --- | --- |
 | `converter/spectral.py` | Validated parameters, streaming STFT, Mel filters, MFCC, raster mapping |
-| `converter/annotations.py` | Versioned, path-safe JSON annotation document |
 | `converter/preview.py` | Bounded whole-file decode and display summaries |
 | `converter/waveform.py` | Close-up waveform decode |
 | `converter/regions.py` | Sample bounds, staged export, exclusive publication, two-part split |
 | `ui/editor_panel.py` | Editor view and signals |
 | `ui/audio_plot.py` | Painting, selection gestures, zoom gestures |
-| `ui/annotation_timeline.py` | Clickable, time-aligned annotation tier overview |
 | `ui/spectral_export.py` | Full-recording spectral PNG with axes and analysis metadata |
 | `ui/spectral_controls.py`, `ui/region_controls.py` | Input controls and validation boundaries |
 | `ui/region_playback.py` | Temporary selection clips and media lifecycle |
 | `ui/studio.py` | Application layout, queued work, player coordination, and dataset workflows |
 
-Numeric processing doesn't import Qt. Workers return data through queued Qt signals; UI changes stay on the main thread. Preview requests include immutable settings so stale work cannot replace a newer parameter choice. Detail requests are debounced. The window still coordinates several workflows; separating the existing audit and annotation pages further is reasonable future cleanup, not a claim of a finished plugin architecture.
+Numeric processing doesn't import Qt. Workers return data through queued Qt signals; UI changes stay on the main thread. Preview requests include immutable settings so stale work cannot replace a newer parameter choice. Detail requests are debounced. The window still coordinates several workflows; separating the existing signal-check page further is reasonable future cleanup, not a claim of a finished plugin architecture.
 
 ## Validation
 
