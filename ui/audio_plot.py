@@ -103,9 +103,11 @@ class AudioPlot(QWidget):
             ):
                 low, high = self.detail["low"][None, :], self.detail["high"][None, :]
                 wave_start, wave_duration = self.detail["start"], self.detail["seconds"]
-            first = max(0, int((start - wave_start) / wave_duration * len(low)))
+            bin_count = low.shape[-1]
+            first = max(0, int((start - wave_start) / wave_duration * bin_count))
             last = max(
-                first + 1, int(np.ceil((start + span - wave_start) / wave_duration * len(low)))
+                first + 1,
+                int(np.ceil((start + span - wave_start) / wave_duration * bin_count)),
             )
             low, high = low[:, first:last], high[:, first:last]
             for channel in range(channel_count):

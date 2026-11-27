@@ -223,7 +223,15 @@ class StudioTests(unittest.TestCase):
         preview = self.window.editor.plot.preview
         self.assertEqual(preview["low"].shape[0], 2)
         self.assertTrue(preview["channel_diagnostics"]["mono_cancellation_risk"])
-        self.assertFalse(self.window.editor.plot.grab().toImage().isNull())
+        image = self.window.editor.plot.grab().toImage()
+        self.assertFalse(image.isNull())
+        waveform_pixels = 0
+        for y in range(12, image.height() - 24):
+            for x in range(12, image.width() - 12):
+                color = image.pixelColor(x, y)
+                if (color.green() > color.red() * 1.15) or (color.blue() > color.red() * 1.15):
+                    waveform_pixels += 1
+        self.assertGreater(waveform_pixels, 100)
 
     def test_drag_selection_timestamp_editing_and_zoom(self):
         self.load()

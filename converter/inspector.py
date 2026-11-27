@@ -64,7 +64,7 @@ class AudioInspector:
         ".rm",
         ".rmvb",
         ".vob",
-        "divx",
+        ".divx",
         ".xvid",
         ".mxf",
         ".f4v",

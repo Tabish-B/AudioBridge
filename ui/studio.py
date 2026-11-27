@@ -556,9 +556,14 @@ class AudioBridgeGUI(QMainWindow):
         return combo
 
     def _preset_changed(self, index):
-        if index == 2:
+        presets = {
+            0: (0, 0, 1),  # Keep source settings
+            1: (1, 0, 0),  # ASR input · 16 kHz mono
+            2: (4, 1, 1),  # Archive · 48 kHz / 24-bit
+        }
+        if index not in presets:  # Custom leaves the current values alone.
             return
-        rate, depth, channels = [(0, 0, 1), (1, 0, 0), (4, 1, 1)][index]
+        rate, depth, channels = presets[index]
         for combo, value in [(self.rate, rate), (self.depth, depth), (self.channels, channels)]:
             combo.blockSignals(True)
             combo.setCurrentIndex(value)
